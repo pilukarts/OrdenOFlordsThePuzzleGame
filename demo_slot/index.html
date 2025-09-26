@@ -1,97 +1,575 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Slot Demo – Fake Spin</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Orden of Lords — Slot Puzzle Demo (Gravity & Cascades)</title>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.js"></script>
   <style>
-    body { margin:0; background:#111; color:#fff; font-family:Arial; text-align:center; }
-    canvas { margin:auto; display:block; }
+    body { margin:0; background:#0b0b0f; color:#fff; font-family:Arial, Helvetica, sans-serif; }
+    #game { display:flex; justify-content:center; padding-top:10px; }
+    h1 { text-align:center; font-size:18px; margin:8px 0; }
+    .note { text-align:center; font-size:12px; opacity:0.8; }
   </style>
 </head>
 <body>
-  <h2>🎰 Slot Demo (Fake)</h2>
+  <h1>Orden of Lords — Demo: Gravity Reels, Cascades & Bonus</h1>
   <div id="game"></div>
-  
-  <script>
-    class SlotScene extends Phaser.Scene {
-      constructor() {
-        super('SlotScene');
+  <p class="note">Demo original: reemplaza las figuras generadas por `Graphics` con tus sprites para mayor personalidad.</p>
+
+<script>
+/*
+  Demo features:
+  - Grid (expandable) with gravity (tiles fall).
+  - Cascades: matches removed, tiles drop, refill, multiplier increases per cascade.
+  - Wild symbol (substitutes any), Scatter symbol (triggers free spins).
+  - Bonus round: free spins awarded when >=3 scatters visible after a spin.
+  - UI: balance, bet, spin, bet +/- , expand grid.
+  - All visuals are drawn with Phaser Graphics so you can later swap with sprites.
+*/
+
+const GAME_WIDTH = 900;
+const GAME_HEIGHT = 650;
+
+class SlotScene extends Phaser.Scene {
+  constructor() {
+    super('SlotScene');
+  }
+
+  init() {
+    // Configurable initial grid
+    this.cols = 6;     // columns (fixed)
+    this.rows = 4;     // rows (can expand)
+    this.maxRows = 8;
+    this.minRows = 3;
+
+    // Symbols: 0..N-1, special keys: 'W' = wild, 'S' = scatter
+    this.baseSymbols = ['red','green','blue','purple']; // visual categories
+    this.symbolKeys = [...this.baseSymbols];
+    this.symbolKeys.push('W'); // wild
+    this.symbolKeys.push('S'); // scatter
+
+    this.cellSize = 64;
+    this.grid = []; // 2D array [col][row]
+    this.falling = false;
+
+    // Economy
+    this.balance = 5000;
+    this.bet = 20;
+    this.freeSpins = 0;
+
+    // Cascade multiplier
+    this.cascadeMultiplier = 1;
+  }
+
+  preload() {
+    // No external assets: generate circle textures for each symbol for placeholder visuals
+  }
+
+  create() {
+    // Create textures for symbols (simple shapes/colors). Replace these with sprites later.
+    this.createSymbolTextures();
+
+    // UI
+    this.balanceText = this.add.text(20, 18, `Balance: ${this.balance}`, {fontSize:'18px', color:'#ffffff'});
+    this.betText = this.add.text(20, 44, `Bet: ${this.bet}`, {fontSize:'16px', color:'#ffffff'});
+    this.multText = this.add.text(20, 70, `Cascade x${this.cascadeMultiplier}`, {fontSize:'14px', color:'#ffef7a'});
+    this.freeSpinText = this.add.text(20, 96, `Free Spins: ${this.freeSpins}`, {fontSize:'14px', color:'#7fe0ff'});
+
+    // Buttons
+    this.createButtons();
+
+    // Playfield container
+    this.boardX = 240;
+    this.boardY = 120;
+    this.createGridVisual();
+
+    // Initialize grid with random symbols (no immediate matches)
+    this.resetGrid();
+
+    // Input lock
+    this.isAnimating = false;
+  }
+
+  createSymbolTextures() {
+    // create a circle texture for each key
+    const size = this.cellSize;
+    const graphics = this.make.graphics({x:0, y:0, add:false});
+    const mapping = {
+      red: '#E94B3C',
+      green: '#3EC47A',
+      blue: '#3C7BE9',
+      purple: '#A04CE9',
+      W: '#FFD166', // wild - gold
+      S: '#50E3C2'  // scatter - teal
+    };
+    for (const key of Object.keys(mapping)) {
+      graphics.clear();
+      graphics.fillStyle(0xffffff, 1);
+      graphics.fillRect(0,0,size,size); // background to avoid transparency weirdness
+      graphics.fillStyle(Phaser.Display.Color.HexStringToColor(mapping[key]).color, 1);
+      graphics.fillCircle(size/2, size/2, size*0.36);
+      graphics.lineStyle(4, 0x000000, 0.25);
+      graphics.strokeCircle(size/2, size/2, size*0.36);
+      graphics.generateTexture('sym_' + key, size, size);
+    }
+  }
+
+  createButtons() {
+    // Spin button
+    this.spinBtn = this.add.text(660, 70, 'SPIN', {fontSize:'28px', color:'#000000', backgroundColor:'#FFD166', padding: {x:12,y:8}})
+      .setInteractive()
+      .on('pointerdown', () => this.onSpin());
+
+    // Bet +/-
+    this.add.text(660, 130, 'Bet +', {fontSize:'16px', color:'#fff', backgroundColor:'#2b2b2b', padding:{x:8,y:6}})
+      .setInteractive().on('pointerdown',()=>{ this.bet += 10; this.updateUI(); });
+
+    this.add.text(760, 130, 'Bet -', {fontSize:'16px', color:'#fff', backgroundColor:'#2b2b2b', padding:{x:8,y:6}})
+      .setInteractive().on('pointerdown',()=>{ if(this.bet>10) this.bet -= 10; this.updateUI(); });
+
+    // Expand grid
+    this.add.text(660, 190, 'Expand Grid (+2 rows)', {fontSize:'14px', color:'#fff', backgroundColor:'#3a3a3a', padding:{x:8,y:6}})
+      .setInteractive().on('pointerdown',()=>{ this.expandGrid(); });
+
+    // Toggle replace sprites (placeholders)
+    this.add.text(660, 240, 'Reset Grid', {fontSize:'14px', color:'#fff', backgroundColor:'#3a3a3a', padding:{x:8,y:6}})
+      .setInteractive().on('pointerdown',()=>{ this.resetGrid(); });
+  }
+
+  createGridVisual() {
+    // Container to hold tile GameObjects
+    if (this.boardContainer) this.boardContainer.destroy();
+    this.boardContainer = this.add.container(this.boardX, this.boardY);
+
+    // Draw background plate
+    const plate = this.add.rectangle(0, 0, this.cols*this.cellSize + 20, this.rows*this.cellSize + 20, 0x0f1720)
+      .setOrigin(0).setStrokeStyle(2, 0x222538);
+    this.boardContainer.add(plate);
+  }
+
+  resetGrid() {
+    // Create grid array and make sure initial state has no immediate matches
+    // grid[col][row] with row 0 at top
+    this.grid = [];
+    for (let c = 0; c < this.cols; c++) {
+      this.grid[c] = [];
+      for (let r = 0; r < this.rows; r++) {
+        this.grid[c][r] = this.randomSymbolNoMatchAt(c,r);
       }
+    }
+    // create visual sprites
+    this.renderGrid();
+    this.updateUI();
+  }
 
-      preload() {
-        // símbolos simples (puedes sustituir por tus ilustraciones)
-        this.load.image('cherry', 'https://i.imgur.com/H6s2X3X.png');
-        this.load.image('lemon', 'https://i.imgur.com/k1zo6lH.png');
-        this.load.image('seven', 'https://i.imgur.com/xA5Qujv.png');
+  randomSymbolNoMatchAt(col, row) {
+    // choose random symbol key but avoid creating immediate 3-in-a-row horizontal/vertical during init
+    const pool = this.symbolKeys;
+    let attempts = 0;
+    while (attempts < 20) {
+      const key = Phaser.Utils.Array.GetRandom(pool);
+      // temporary assign to check
+      this.grid[col] = this.grid[col] || [];
+      this.grid[col][row] = key;
+      if (!this.createsInitialMatch(col, row)) return key;
+      attempts++;
+    }
+    return Phaser.Utils.Array.GetRandom(pool);
+  }
+
+  createsInitialMatch(col, row) {
+    const key = this.grid[col][row];
+    // horizontal check: left two
+    if (col >= 2) {
+      if (this.grid[col-1] && this.grid[col-2] && this.grid[col-1][row] === key && this.grid[col-2][row] === key) return true;
+    }
+    // vertical check: up two
+    if (row >= 2) {
+      if (this.grid[col][row-1] === key && this.grid[col][row-2] === key) return true;
+    }
+    return false;
+  }
+
+  renderGrid() {
+    // remove previous visuals
+    if (this.tileGroup) this.tileGroup.clear(true, true);
+    this.tileGroup = this.add.group();
+
+    for (let c = 0; c < this.cols; c++) {
+      for (let r = 0; r < this.rows; r++) {
+        const key = this.grid[c][r];
+        const x = c * this.cellSize + 10 + this.cellSize/2;
+        const y = r * this.cellSize + 10 + this.cellSize/2;
+        const img = this.add.image(this.boardX + x, this.boardY + y, 'sym_' + key).setDisplaySize(this.cellSize-6, this.cellSize-6);
+        img.setData('col', c);
+        img.setData('row', r);
+        img.setData('key', key);
+        this.tileGroup.add(img);
       }
+    }
+  }
 
-      create() {
-        this.balance = 1000;
-        this.bet = 10;
-        this.symbols = ['cherry', 'lemon', 'seven'];
+  updateUI() {
+    this.balanceText.setText(`Balance: ${this.balance}`);
+    this.betText.setText(`Bet: ${this.bet}`);
+    this.multText.setText(`Cascade x${this.cascadeMultiplier}`);
+    this.freeSpinText.setText(`Free Spins: ${this.freeSpins}`);
+  }
 
-        // Texto UI
-        this.balanceText = this.add.text(20, 20, `Balance: ${this.balance}`, { fontSize: '20px', fill: '#fff' });
-        this.betText = this.add.text(20, 50, `Bet: ${this.bet}`, { fontSize: '20px', fill: '#fff' });
-
-        // Botones
-        const spinBtn = this.add.text(400, 300, 'SPIN 🎲', { fontSize: '32px', fill: '#0f0' })
-          .setInteractive()
-          .on('pointerdown', () => this.spin());
-
-        const betUp = this.add.text(400, 350, 'Bet +', { fontSize: '24px', fill: '#0ff' })
-          .setInteractive()
-          .on('pointerdown', () => { this.bet += 10; this.updateUI(); });
-
-        const betDown = this.add.text(400, 380, 'Bet -', { fontSize: '24px', fill: '#0ff' })
-          .setInteractive()
-          .on('pointerdown', () => { if(this.bet>10){ this.bet -= 10; this.updateUI(); } });
-
-        // Carretes (3 símbolos)
-        this.reels = [];
-        for (let i = 0; i < 3; i++) {
-          let sym = this.add.image(200 + i*100, 200, 'cherry').setScale(0.3);
-          this.reels.push(sym);
-        }
+  onSpin() {
+    if (this.isAnimating) return;
+    if (this.freeSpins > 0) {
+      this.freeSpins--;
+      this.updateUI();
+      // free spin doesn't cost balance
+    } else {
+      if (this.balance < this.bet) {
+        // insufficient funds
+        this.tweens.add({ targets: this.balanceText, alpha: 0.3, duration:120, yoyo:true, repeat:2 });
+        return;
       }
+      this.balance -= this.bet;
+      this.updateUI();
+    }
 
-      updateUI() {
-        this.balanceText.setText(`Balance: ${this.balance}`);
-        this.betText.setText(`Bet: ${this.bet}`);
-      }
+    this.cascadeMultiplier = 1; // reset multiplier for this spin
+    this.multText.setText(`Cascade x${this.cascadeMultiplier}`);
 
-      spin() {
-        if (this.balance < this.bet) return;
-        this.balance -= this.bet;
-
-        // resultado aleatorio (fake RNG)
-        const results = this.reels.map(reel => {
-          let sym = Phaser.Utils.Array.GetRandom(this.symbols);
-          reel.setTexture(sym);
-          return sym;
-        });
-
-        // chequeo simple: si todos son iguales -> premio x5
-        if (results[0] === results[1] && results[1] === results[2]) {
-          this.balance += this.bet * 5;
-        }
-
+    // Start a full spin sequence: fill top rows with random symbols then drop them into place (simulate reel spin)
+    this.isAnimating = true;
+    this.animateSpin()
+      .then(() => this.resolveCascades())
+      .then(() => {
+        this.isAnimating = false;
         this.updateUI();
+      });
+  }
+
+  animateSpin() {
+    // For demo: randomized top fill then let gravity settle with tween
+    return new Promise(resolve => {
+      // Fill any empty cells with random symbol at top (simulate reels)
+      for (let c = 0; c < this.cols; c++) {
+        for (let r = 0; r < this.rows; r++) {
+          this.grid[c][r] = Phaser.Utils.Array.GetRandom(this.symbolKeys);
+        }
+      }
+      // render visuals with a drop animation
+      if (this.tileGroup) this.tileGroup.clear(true, true);
+
+      const promises = [];
+      for (let c = 0; c < this.cols; c++) {
+        for (let r = 0; r < this.rows; r++) {
+          const key = this.grid[c][r];
+          const x = this.boardX + c * this.cellSize + 10 + this.cellSize/2;
+          const startY = -100 - Phaser.Math.Between(0,200) + (c*10);
+          const targetY = this.boardY + r * this.cellSize + 10 + this.cellSize/2;
+          const img = this.add.image(x, startY, 'sym_' + key).setDisplaySize(this.cellSize-6, this.cellSize-6);
+          this.tileGroup.add(img);
+          const p = new Promise(res => {
+            this.tweens.add({
+              targets: img,
+              y: targetY,
+              duration: 400 + r*60 + Phaser.Math.Between(0,120),
+              ease: 'Cubic.easeOut',
+              onComplete: () => {
+                img.setData('col', c);
+                img.setData('row', r);
+                img.setData('key', key);
+                res();
+              }
+            });
+          });
+          promises.push(p);
+        }
+      }
+
+      Promise.all(promises).then(()=>resolve());
+    });
+  }
+
+  resolveCascades() {
+    // Repeatedly find matches, remove them, apply gravity, refill, increase multiplier and award payouts.
+    return new Promise(async (resolve) => {
+      let anyMatch = false;
+      let totalWin = 0;
+      let round = 0;
+      do {
+        round++;
+        const matches = this.findAllMatches();
+        if (matches.length === 0) {
+          anyMatch = false;
+          break;
+        }
+        anyMatch = true;
+
+        // Remove matched tiles (set to null)
+        for (const group of matches) {
+          // calculate payout for group: base payout (size * bet * some factor) * cascade multiplier
+          const size = group.length;
+          const payoutBase = Math.max(1, size - 2) * this.bet; // simple formula
+          totalWin += payoutBase * this.cascadeMultiplier;
+          for (const cell of group) {
+            this.grid[cell.col][cell.row] = null;
+          }
+        }
+
+        // Visual remove animation for matched sprites
+        await this.animateRemovals(matches);
+
+        // Apply gravity so tiles fall
+        await this.applyGravity();
+
+        // Refill top with new symbols with drop animation
+        await this.refillAndDrop();
+
+        // Increase cascade multiplier
+        this.cascadeMultiplier++;
+        this.multText.setText(`Cascade x${this.cascadeMultiplier}`);
+
+        // If new scatters appear and >=3 scatters visible after a cascade, grant free spins at end of full resolution
+      } while(true);
+
+      // After cascades, check scatters count
+      const scatterCount = this.countSymbolOnGrid('S');
+      if (scatterCount >= 3) {
+        const awarded = 3 + (scatterCount - 3); // e.g., 3 scatters = 3 free spins; +1 per extra
+        this.freeSpins += awarded;
+      }
+
+      // Final payout applied to balance (with final multiplier)
+      if (totalWin > 0) {
+        // apply a final multiplier effect from cascades
+        const finalGain = totalWin;
+        // small animation to show win
+        this.tweens.addCounter({
+          from: 0,
+          to: finalGain,
+          duration: 600,
+          onUpdate: (tween)=> {
+            const v = Math.floor(tween.getValue());
+            this.addWinPreview && this.addWinPreview.destroy?.();
+            this.addWinPreview = this.add.text(660, 330, `WIN: ${v}`, {fontSize:'22px', color:'#fff', backgroundColor:'#f25b5b', padding:{x:8,y:6}}).setDepth(999);
+          },
+          onComplete: ()=> {
+            this.addWinPreview.destroy();
+            this.balance += finalGain;
+            this.updateUI();
+          }
+        });
+      }
+
+      // small delay so UI updates noticeable
+      await this.wait(420);
+      resolve();
+    });
+  }
+
+  findAllMatches() {
+    // Find connected groups (orthogonal adjacency) of same *effective symbol*
+    // Wild ('W') counts as wildcard for matching any group.
+    const visited = {};
+    const groups = [];
+
+    const keyAt = (c,r) => this.grid[c] && this.grid[c][r] ? this.grid[c][r] : null;
+
+    for (let c = 0; c < this.cols; c++) {
+      for (let r = 0; r < this.rows; r++) {
+        const key = keyAt(c,r);
+        if (!key) continue;
+        const id = `${c},${r}`;
+        if (visited[id]) continue;
+
+        // BFS flood fill but wild logic: a wild can belong to any group but we only start from non-null tiles
+        // We treat group identity by the non-wild base symbol(s) encountered. For simplicity:
+        // - If tile is wild, we still explore neighbors and include them; group key resolved by neighbors.
+        // Simpler approach: try expanding groups for each tile treating wild as matching everything,
+        // then only keep groups with size >=3.
+        const queue = [[c,r]];
+        visited[id] = true;
+        const group = [];
+
+        while (queue.length) {
+          const [x,y] = queue.shift();
+          const k = keyAt(x,y);
+          group.push({col:x,row:y,key:k});
+          const neighbors = [[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+          for (const [nx,ny] of neighbors) {
+            if (nx < 0 || nx >= this.cols || ny < 0 || ny >= this.rows) continue;
+            const nid = `${nx},${ny}`;
+            if (visited[nid]) continue;
+            const nk = keyAt(nx,ny);
+            if (!nk) continue;
+            // match condition: same key OR one is 'W' OR both are wild
+            if (nk === k || nk === 'W' || k === 'W') {
+              visited[nid] = true;
+              queue.push([nx,ny]);
+            }
+          }
+        }
+
+        if (group.length >= 3) {
+          groups.push(group);
+        }
       }
     }
 
-    const config = {
-      type: Phaser.AUTO,
-      width: 800,
-      height: 600,
-      backgroundColor: '#222',
-      scene: [SlotScene]
-    };
+    // Merge overlapping groups (a cell could be in two flood fills because wilds link them)
+    // We'll coalesce groups by cell uniqueness
+    if (groups.length <= 1) return groups;
+    const merged = [];
+    const taken = new Set();
+    for (const g of groups) {
+      const keySet = g.map(c=>`${c.col},${c.row}`);
+      // if any cell already in merged group, merge into that
+      let target = null;
+      for (let i=0;i<merged.length;i++) {
+        if (merged[i].some(c=> keySet.includes(`${c.col},${c.row}`))) {
+          // merge
+          merged[i] = merged[i].concat(g);
+          target = i;
+          break;
+        }
+      }
+      if (target === null) merged.push(g);
+    }
+    // Remove duplicates inside groups
+    const finalGroups = merged.map(g=>{
+      const m = {};
+      return g.filter(c => {
+        const id = `${c.col},${c.row}`;
+        if (m[id]) return false;
+        m[id]=true; return true;
+      });
+    });
 
-    new Phaser.Game(config);
-  </script>
+    return finalGroups;
+  }
+
+  animateRemovals(matches) {
+    return new Promise(resolve => {
+      const toRemove = [];
+      for (const g of matches) {
+        for (const cell of g) toRemove.push(cell);
+      }
+      // find tiles (GameObjects) at those cells and animate fade + scale
+      const tweens = [];
+      for (const cell of toRemove) {
+        const found = this.tileGroup.getChildren().find(t => t.getData('col') === cell.col && t.getData('row') === cell.row);
+        if (found) {
+          tweens.push(new Promise(res=>{
+            this.tweens.add({
+              targets: found,
+              alpha: 0,
+              scale: 0.2,
+              duration: 260,
+              ease: 'Back.easeIn',
+              onComplete: ()=> { found.destroy(); res(); }
+            });
+          }));
+        }
+      }
+      Promise.all(tweens).then(()=>this.time.delayedCall(80, resolve));
+    });
+  }
+
+  applyGravity() {
+    // Make tiles fall down to fill nulls; modify this.grid accordingly
+    return new Promise(resolve => {
+      for (let c = 0; c < this.cols; c++) {
+        let writeRow = this.rows - 1;
+        for (let r = this.rows - 1; r >= 0; r--) {
+          if (this.grid[c][r] != null) {
+            // move to writeRow if different
+            if (writeRow !== r) {
+              this.grid[c][writeRow] = this.grid[c][r];
+              this.grid[c][r] = null;
+            }
+            writeRow--;
+          }
+        }
+        // above writeRow, cells are null (to refill)
+        for (let r = writeRow; r >= 0; r--) this.grid[c][r] = null;
+      }
+      resolve();
+    });
+  }
+
+  refillAndDrop() {
+    return new Promise(resolve => {
+      // For each null cell, create new random symbol above the board and drop it into place.
+      const promises = [];
+      for (let c = 0; c < this.cols; c++) {
+        for (let r = 0; r < this.rows; r++) {
+          if (this.grid[c][r] == null) {
+            const key = Phaser.Utils.Array.GetRandom(this.symbolKeys);
+            this.grid[c][r] = key;
+            const x = this.boardX + c * this.cellSize + 10 + this.cellSize/2;
+            const startY = -60 - Phaser.Math.Between(0,160);
+            const targetY = this.boardY + r * this.cellSize + 10 + this.cellSize/2;
+            const img = this.add.image(x, startY, 'sym_' + key).setDisplaySize(this.cellSize-6, this.cellSize-6);
+            this.tileGroup.add(img);
+            img.setData('col', c);
+            img.setData('row', r);
+            img.setData('key', key);
+            promises.push(new Promise(res=>{
+              this.tweens.add({
+                targets: img,
+                y: targetY,
+                duration: 260 + r*40,
+                ease: 'Cubic.easeOut',
+                onComplete: ()=> res()
+              });
+            }));
+          }
+        }
+      }
+      Promise.all(promises).then(()=>this.time.delayedCall(60, resolve));
+    });
+  }
+
+  countSymbolOnGrid(symKey) {
+    let count = 0;
+    for (let c=0;c<this.cols;c++) for (let r=0;r<this.rows;r++) if (this.grid[c][r] === symKey) count++;
+    return count;
+  }
+
+  expandGrid() {
+    if (this.rows + 2 > this.maxRows) {
+      this.tweens.add({ targets: this.boardContainer, scale:1.02, duration:120, yoyo:true });
+      return;
+    }
+    this.rows += 2;
+    // redraw the plate and refill grid with new rows added at bottom
+    this.createGridVisual();
+    // expand grid array: shift existing rows up and add new rows with random symbols at the bottom
+    for (let c=0;c<this.cols;c++) {
+      const col = this.grid[c] || [];
+      // append new nulls at end
+      for (let i=0;i<2;i++) col.push(Phaser.Utils.Array.GetRandom(this.symbolKeys));
+      this.grid[c] = col;
+    }
+    // animate a little pop
+    this.renderGrid();
+    this.updateUI();
+  }
+
+  wait(ms) { return new Promise(res=>this.time.delayedCall(ms, res)); }
+}
+
+const config = {
+  type: Phaser.AUTO,
+  width: GAME_WIDTH,
+  height: GAME_HEIGHT,
+  backgroundColor: 0x081018,
+  parent: 'game',
+  scene: [SlotScene]
+};
+
+new Phaser.Game(config);
+</script>
 </body>
 </html>
+
 
