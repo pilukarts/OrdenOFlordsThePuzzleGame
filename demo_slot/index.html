@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Slot Demo – Fake Spin</title>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.js"></script>
+  <style>
+    body { margin:0; background:#111; color:#fff; font-family:Arial; text-align:center; }
+    canvas { margin:auto; display:block; }
+  </style>
+</head>
+<body>
+  <h2>🎰 Slot Demo (Fake)</h2>
+  <div id="game"></div>
+  
+  <script>
+    class SlotScene extends Phaser.Scene {
+      constructor() {
+        super('SlotScene');
+      }
+
+      preload() {
+        // símbolos simples (puedes sustituir por tus ilustraciones)
+        this.load.image('cherry', 'https://i.imgur.com/H6s2X3X.png');
+        this.load.image('lemon', 'https://i.imgur.com/k1zo6lH.png');
+        this.load.image('seven', 'https://i.imgur.com/xA5Qujv.png');
+      }
+
+      create() {
+        this.balance = 1000;
+        this.bet = 10;
+        this.symbols = ['cherry', 'lemon', 'seven'];
+
+        // Texto UI
+        this.balanceText = this.add.text(20, 20, `Balance: ${this.balance}`, { fontSize: '20px', fill: '#fff' });
+        this.betText = this.add.text(20, 50, `Bet: ${this.bet}`, { fontSize: '20px', fill: '#fff' });
+
+        // Botones
+        const spinBtn = this.add.text(400, 300, 'SPIN 🎲', { fontSize: '32px', fill: '#0f0' })
+          .setInteractive()
+          .on('pointerdown', () => this.spin());
+
+        const betUp = this.add.text(400, 350, 'Bet +', { fontSize: '24px', fill: '#0ff' })
+          .setInteractive()
+          .on('pointerdown', () => { this.bet += 10; this.updateUI(); });
+
+        const betDown = this.add.text(400, 380, 'Bet -', { fontSize: '24px', fill: '#0ff' })
+          .setInteractive()
+          .on('pointerdown', () => { if(this.bet>10){ this.bet -= 10; this.updateUI(); } });
+
+        // Carretes (3 símbolos)
+        this.reels = [];
+        for (let i = 0; i < 3; i++) {
+          let sym = this.add.image(200 + i*100, 200, 'cherry').setScale(0.3);
+          this.reels.push(sym);
+        }
+      }
+
+      updateUI() {
+        this.balanceText.setText(`Balance: ${this.balance}`);
+        this.betText.setText(`Bet: ${this.bet}`);
+      }
+
+      spin() {
+        if (this.balance < this.bet) return;
+        this.balance -= this.bet;
+
+        // resultado aleatorio (fake RNG)
+        const results = this.reels.map(reel => {
+          let sym = Phaser.Utils.Array.GetRandom(this.symbols);
+          reel.setTexture(sym);
+          return sym;
+        });
+
+        // chequeo simple: si todos son iguales -> premio x5
+        if (results[0] === results[1] && results[1] === results[2]) {
+          this.balance += this.bet * 5;
+        }
+
+        this.updateUI();
+      }
+    }
+
+    const config = {
+      type: Phaser.AUTO,
+      width: 800,
+      height: 600,
+      backgroundColor: '#222',
+      scene: [SlotScene]
+    };
+
+    new Phaser.Game(config);
+  </script>
+</body>
+</html>
+
