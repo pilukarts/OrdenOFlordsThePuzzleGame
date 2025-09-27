@@ -1,0 +1,31 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import Phaser from "phaser";
+
+class SlotScene extends Phaser.Scene {
+  constructor() {
+    super("SlotScene");
+  }
+  preload() {
+    this.textures.generate("red", { data: ["0xff0000"], pixelWidth: 64 });
+  }
+  create() {
+    this.add.image(400, 300, "red");
+  }
+}
+
+const config: Phaser.Types.Core.GameConfig = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  scene: [SlotScene],
+};
+
+function GameWrapper() {
+  React.useEffect(() => {
+    new Phaser.Game(config);
+  }, []);
+  return <div id="game-container"></div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")!).render(<GameWrapper />);
