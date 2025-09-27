@@ -7,7 +7,9 @@
   "main": "src/game/main.ts",
   "scripts": {
     "start": "tsc && node dist/game/main.js",
-    "dev": "ts-node src/game/main.ts",
+    "dev": "ts-node frontenf/src/main.ts"
+}
+
     "build": "tsc"
   },
   "dependencies": {},
