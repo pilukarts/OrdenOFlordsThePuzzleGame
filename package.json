@@ -4,17 +4,19 @@
   "description": "A match-3 puzzle game with player battles and Lords system.",
   "author": "pilukarts",
   "license": "MIT",
-  "main": "src/game/main.ts",
   "scripts": {
-    "start": "tsc && node dist/game/main.js",
-    "dev": "ts-node frontenf/src/main.ts"
-}
-
-    "build": "tsc"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "dependencies": {},
+  "dependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
   "devDependencies": {
     "typescript": "^5.0.0",
-    "ts-node": "^10.0.0"
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^3.0.0"
   }
 }
+
