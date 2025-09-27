@@ -1,1 +1,18 @@
-{"name":"OrdenOFlordsThePuzzleGame","version":"1.0.0","description":"A match-3 puzzle game with player battles and Lords system.","main":"src/game/main.ts","scripts":{"start":"tsc && node dist/game/main.js","dev":"ts-node src/game/main.ts","build":"tsc"},"author":"pilukarts","license":"MIT","dependencies":{},"devDependencies":{"typescript":"^5.0.0","ts-node":"^10.0.0"}}
+{
+  "name": "OrdenOFlordsThePuzzleGame",
+  "version": "1.0.0",
+  "description": "A match-3 puzzle game with player battles and Lords system.",
+  "author": "pilukarts",
+  "license": "MIT",
+  "main": "src/game/main.ts",
+  "scripts": {
+    "start": "tsc && node dist/game/main.js",
+    "dev": "ts-node src/game/main.ts",
+    "build": "tsc"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "ts-node": "^10.0.0"
+  }
+}
