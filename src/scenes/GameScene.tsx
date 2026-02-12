@@ -80,7 +80,7 @@ export class GameScene extends Phaser.Scene {
             graphics.fillRect(0, 0, size, size);
             graphics.fillStyle(Phaser.Display.Color.HexStringToColor(mapping[key]).color, 1);
             graphics.fillCircle(size / 2, size / 2, size * 0.36);
-            graphics.lineStyle(4, 0x000000, 0.25);
+            graphics.lineStyle(4, 0x000000, 0.5);
             graphics.strokeCircle(size / 2, size / 2, size * 0.36);
             graphics.generateTexture('sym_' + key, size, size);
         }
