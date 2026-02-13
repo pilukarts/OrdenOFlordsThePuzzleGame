@@ -304,7 +304,7 @@ export class GameScene extends Phaser.Scene {
         for (let c = 0; c < this.cols; c++) {
             for (let r = this.rows - 1; r >= 0; r--) {
                 // More aggressive probability decrease for Cygnus pattern
-                // Row 3 (bottom): 100%, Row 2: 80%, Row 1: 40%, Row 0 (top): 10%
+                // Row 3 (bottom): 100%, Row 2: 80%, Row 1: 35%, Row 0 (top): 10%
                 let fillChance;
                 if (r === this.rows - 1) {
                     fillChance = 1.0; // Bottom row always fills
