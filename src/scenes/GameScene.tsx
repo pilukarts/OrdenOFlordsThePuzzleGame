@@ -39,14 +39,14 @@ export class GameScene extends Phaser.Scene {
 
     preload() {
         // Load background and frame
-        this.load.image('background', '/assets/fantasy landscape co.png');
-        this.load.image('frame', '/assets/ruin_columns.png');
+        this.load.image('background', '/OrdenOFlordsThePuzzleGame/assets/fantasy landscape co.png');
+        this.load.image('frame', '/OrdenOFlordsThePuzzleGame/assets/ruin_columns.png');
         
         // Load mascot symbols
-        this.load.image('macota1', '/assets/macota1.png');
-        this.load.image('mascota2', '/assets/mascota2.png');
-        this.load.image('mascota3', '/assets/mascota3.png');
-        this.load.image('mascota4', '/assets/mascota4.png');
+        this.load.image('macota1', '/OrdenOFlordsThePuzzleGame/assets/macota1.png');
+        this.load.image('mascota2', '/OrdenOFlordsThePuzzleGame/assets/mascota2.png');
+        this.load.image('mascota3', '/OrdenOFlordsThePuzzleGame/assets/mascota3.png');
+        this.load.image('mascota4', '/OrdenOFlordsThePuzzleGame/assets/mascota4.png');
     }
 
     create() {
@@ -283,16 +283,44 @@ export class GameScene extends Phaser.Scene {
     }
 
     resetGrid() {
-        // Initialize grid with random symbols
+        // Initialize grid with Cygnus pattern (partially filled from bottom)
+        this.initializeCygnusPattern();
+        this.renderGrid();
+        this.updateUI();
+    }
+
+    initializeCygnusPattern() {
+        // Initialize empty grid
         this.grid = [];
         for (let c = 0; c < this.cols; c++) {
             this.grid[c] = [];
             for (let r = 0; r < this.rows; r++) {
-                this.grid[c][r] = this.randomSymbolNoMatchAt(c, r);
+                this.grid[c][r] = null;
             }
         }
-        this.renderGrid();
-        this.updateUI();
+
+        // Fill from bottom with decreasing probability (Cygnus pattern)
+        // This creates the characteristic irregular pattern where top rows are mostly empty
+        for (let c = 0; c < this.cols; c++) {
+            for (let r = this.rows - 1; r >= 0; r--) {
+                // More aggressive probability decrease for Cygnus pattern
+                // Row 3 (bottom): 100%, Row 2: 80%, Row 1: 40%, Row 0 (top): 10%
+                let fillChance;
+                if (r === this.rows - 1) {
+                    fillChance = 1.0; // Bottom row always fills
+                } else if (r === this.rows - 2) {
+                    fillChance = 0.8; // Second from bottom: 80%
+                } else if (r === this.rows - 3) {
+                    fillChance = 0.35; // Third row: 35%
+                } else {
+                    fillChance = 0.1; // Top rows: 10%
+                }
+                
+                if (Math.random() < fillChance) {
+                    this.grid[c][r] = this.randomSymbolNoMatchAt(c, r);
+                }
+            }
+        }
     }
 
     randomSymbolNoMatchAt(col: number, row: number): string {
@@ -394,12 +422,8 @@ export class GameScene extends Phaser.Scene {
 
     animateSpin(): Promise<void> {
         return new Promise((resolve) => {
-            // Fill grid with random symbols
-            for (let c = 0; c < this.cols; c++) {
-                for (let r = 0; r < this.rows; r++) {
-                    this.grid[c][r] = Phaser.Utils.Array.GetRandom(this.symbols);
-                }
-            }
+            // Re-initialize with Cygnus pattern (not filling entire grid)
+            this.initializeCygnusPattern();
 
             // Clear existing tiles
             if (this.tileGroup) this.tileGroup.clear(true, true);
@@ -603,22 +627,60 @@ export class GameScene extends Phaser.Scene {
 
     applyGravity(): Promise<void> {
         return new Promise((resolve) => {
+            const moves: Array<{ fromRow: number; toRow: number; col: number; img: Phaser.GameObjects.Image }> = [];
+            
+            // Calculate gravity movements
             for (let c = 0; c < this.cols; c++) {
                 let writeRow = this.rows - 1;
                 for (let r = this.rows - 1; r >= 0; r--) {
                     if (this.grid[c][r] !== null) {
                         if (writeRow !== r) {
+                            // Need to move this tile
+                            const img = this.tileGroup?.getChildren().find(
+                                (t: Phaser.GameObjects.GameObject) => {
+                                    const tile = t as Phaser.GameObjects.Image;
+                                    return tile.getData('col') === c && tile.getData('row') === r;
+                                }
+                            ) as Phaser.GameObjects.Image | undefined;
+                            
+                            if (img) {
+                                moves.push({ fromRow: r, toRow: writeRow, col: c, img });
+                            }
+                            
                             this.grid[c][writeRow] = this.grid[c][r];
                             this.grid[c][r] = null;
                         }
                         writeRow--;
                     }
                 }
+                // Clear remaining upper cells
                 for (let r = writeRow; r >= 0; r--) {
                     this.grid[c][r] = null;
                 }
             }
-            resolve();
+            
+            // Animate gravity movements
+            if (moves.length > 0) {
+                const tweens = moves.map(move => {
+                    return new Promise<void>((res) => {
+                        const targetY = move.toRow * this.cellSize + this.cellSize / 2;
+                        this.tweens.add({
+                            targets: move.img,
+                            y: this.boardY + targetY + 10,
+                            duration: 200,
+                            ease: 'Cubic.easeIn',
+                            onComplete: () => {
+                                move.img.setData('row', move.toRow);
+                                res();
+                            }
+                        });
+                    });
+                });
+                
+                Promise.all(tweens).then(() => resolve());
+            } else {
+                resolve();
+            }
         });
     }
 
