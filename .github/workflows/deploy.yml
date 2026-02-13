@@ -1,0 +1,91 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - copilot/create-cygnus-6-style-game
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      # Telegram Notification (opcional - activar cuando se necesite)
+      # Para activar: descomentar las líneas siguientes y configurar los secrets
+      # TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en Settings > Secrets
+      # - name: Send Telegram Notification on Success
+      #   if: success()
+      #   uses: appleboy/telegram-action@master
+      #   with:
+      #     to: ${{ secrets.TELEGRAM_CHAT_ID }}
+      #     token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      #     message: |
+      #       ✅ Deployment exitoso!
+      #       
+      #       🎮 Proyecto: ${{ github.repository }}
+      #       🌿 Branch: ${{ github.ref_name }}
+      #       👤 Por: ${{ github.actor }}
+      #       📝 Commit: ${{ github.event.head_commit.message }}
+      #       🔗 URL: ${{ steps.deployment.outputs.page_url }}
+      #       
+      #       ⏰ Tiempo: ${{ github.event.head_commit.timestamp }}
+
+      # - name: Send Telegram Notification on Failure
+      #   if: failure()
+      #   uses: appleboy/telegram-action@master
+      #   with:
+      #     to: ${{ secrets.TELEGRAM_CHAT_ID }}
+      #     token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      #     message: |
+      #       ❌ Deployment falló!
+      #       
+      #       🎮 Proyecto: ${{ github.repository }}
+      #       🌿 Branch: ${{ github.ref_name }}
+      #       👤 Por: ${{ github.actor }}
+      #       📝 Commit: ${{ github.event.head_commit.message }}
+      #       
+      #       Por favor revisa los logs en GitHub Actions.
