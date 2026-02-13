@@ -13,9 +13,18 @@ const GAME_CONFIG = {
     // Frame
     frameScale: 1,        // Escala del frame
     framePaddingX: 20,    // Padding interno horizontal
-    framePaddingY: 20     // Padding interno vertical
+    framePaddingY: 20,    // Padding interno vertical
+    
+    // Cygnus Pattern
+    cygnusFillReduction: 0.6,  // Factor de reducción para patrón Cygnus
+    
+    // Win calculation
+    winMultiplierMin: 0,
+    winMultiplierMax: 5
 };
 
+// Theme colors are defined for reference and future use
+// @ts-ignore - unused but kept for reference
 const THEME_COLORS = {
     // Backgrounds
     bgMain: 0x0a0e27,
@@ -48,9 +57,15 @@ export class GameScene extends Phaser.Scene {
     // Economy
     private balance = 100;
     private currentBet = 1.0;
-    private betValues = [0.20, 0.40, 1.00, 2.00, 3.00, 4.00, 5.00, 10.00];
     private freeSpins = 0;
     private cascadeMultiplier = 1;
+    
+    // Bonus progress (dynamic state)
+    private bonusProgress = {
+        wildStorm: 0,
+        megaWin: 5,
+        freeSpins: 8
+    };
 
     // UI elements
     private balanceText?: Phaser.GameObjects.Text;
@@ -72,11 +87,11 @@ export class GameScene extends Phaser.Scene {
         // Frame (arco de columnas)
         this.load.image('frame', '/OrdenOFlordsThePuzzleGame/assets/ruin_columns.png');
         
-        // Mascotas (NOMBRES CORRECTOS)
-        this.load.image('mascot1', '/OrdenOFlordsThePuzzleGame/assets/macota1.png');        // SIN 's'
-        this.load.image('mascot2', '/OrdenOFlordsThePuzzleGame/assets/mascota2.png');       // CON 's'
-        this.load.image('mascot3', '/OrdenOFlordsThePuzzleGame/assets/mascota3.png');       // CON 's'
-        this.load.image('mascot4', '/OrdenOFlordsThePuzzleGame/assets/mascota4.png');       // CON 's'
+        // Mascotas - Note: mascot1 has different spelling than others (macota1 vs mascota2/3/4)
+        this.load.image('mascot1', '/OrdenOFlordsThePuzzleGame/assets/macota1.png');        // Note: 'macota' without 's'
+        this.load.image('mascot2', '/OrdenOFlordsThePuzzleGame/assets/mascota2.png');
+        this.load.image('mascot3', '/OrdenOFlordsThePuzzleGame/assets/mascota3.png');
+        this.load.image('mascot4', '/OrdenOFlordsThePuzzleGame/assets/mascota4.png');
     }
 
     create() {
@@ -296,14 +311,18 @@ export class GameScene extends Phaser.Scene {
         return container;
     }
 
+    private colorToHex(color: number): string {
+        return '#' + color.toString(16).padStart(6, '0');
+    }
+
     createSuperBonusPanel() {
         const panelX = this.cameras.main.width - 140;
         const panelY = 250;
         
         const bonuses = [
-            { name: 'WILD\nSTORM', icon: '🌟', progress: 0, max: 10, color: 0xFFD700 },
-            { name: 'MEGA\nWIN', icon: '⚡', progress: 5, max: 10, color: 0xFF4500 },
-            { name: 'FREE\nSPINS+', icon: '💫', progress: 8, max: 10, color: 0x8B5CF6 }
+            { name: 'WILD\nSTORM', icon: '🌟', progress: this.bonusProgress.wildStorm, max: 10, color: 0xFFD700 },
+            { name: 'MEGA\nWIN', icon: '⚡', progress: this.bonusProgress.megaWin, max: 10, color: 0xFF4500 },
+            { name: 'FREE\nSPINS+', icon: '💫', progress: this.bonusProgress.freeSpins, max: 10, color: 0x8B5CF6 }
         ];
         
         bonuses.forEach((bonus, index) => {
@@ -324,16 +343,16 @@ export class GameScene extends Phaser.Scene {
             }).setOrigin(0.5).setDepth(11);
             
             // Nombre
-            const name = this.add.text(panelX, yPos + 15, bonus.name, {
+            this.add.text(panelX, yPos + 15, bonus.name, {
                 fontSize: '11px',
-                color: '#' + bonus.color.toString(16).padStart(6, '0'),
+                color: this.colorToHex(bonus.color),
                 fontFamily: 'Cinzel',
                 fontStyle: 'bold',
                 align: 'center'
             }).setOrigin(0.5).setDepth(11);
             
             // Progreso texto
-            const progressText = this.add.text(
+            this.add.text(
                 panelX, yPos + 38, 
                 `${bonus.progress}/${bonus.max}`, 
                 {
@@ -348,7 +367,7 @@ export class GameScene extends Phaser.Scene {
             const barHeight = 6;
             
             // Fondo de la barra
-            const barBg = this.add.rectangle(
+            this.add.rectangle(
                 panelX, yPos + 50,
                 barWidth, barHeight,
                 0x333333, 1
@@ -356,7 +375,7 @@ export class GameScene extends Phaser.Scene {
             
             // Barra de progreso llena
             const percentage = bonus.progress / bonus.max;
-            const progressBar = this.add.rectangle(
+            this.add.rectangle(
                 panelX - (barWidth/2) + (barWidth * percentage / 2),
                 yPos + 50,
                 barWidth * percentage, barHeight,
@@ -404,7 +423,7 @@ export class GameScene extends Phaser.Scene {
         for (let row = 0; row < GAME_CONFIG.rows; row++) {
             for (let col = 0; col < GAME_CONFIG.cols; col++) {
                 // Probabilidad decrece hacia arriba
-                const fillChance = Math.max(0, 1 - (row / GAME_CONFIG.rows) * 0.6);
+                const fillChance = Math.max(0, 1 - (row / GAME_CONFIG.rows) * GAME_CONFIG.cygnusFillReduction);
                 
                 if (Math.random() < fillChance) {
                     const randomType = Phaser.Math.RND.pick(this.gemTypes);
@@ -533,7 +552,7 @@ export class GameScene extends Phaser.Scene {
         
         // Simulate win
         this.time.delayedCall(1000, () => {
-            const win = this.currentBet * Phaser.Math.Between(0, 5);
+            const win = this.currentBet * Phaser.Math.Between(GAME_CONFIG.winMultiplierMin, GAME_CONFIG.winMultiplierMax);
             if (win > 0) {
                 this.balance += win;
                 this.showWinText(win);
