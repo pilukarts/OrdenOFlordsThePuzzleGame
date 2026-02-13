@@ -457,13 +457,13 @@ export class GameScene extends Phaser.Scene {
             for (const group of matches) {
                 const size = group.length;
                 const payoutBase = Math.max(1, size - 2) * this.bet;
-                    totalWin += payoutBase * this.cascadeMultiplier;
+                totalWin += payoutBase * this.cascadeMultiplier;
 
-                    // Remove matched symbols
-                    for (const cell of group) {
-                        this.grid[cell.col][cell.row] = null;
-                    }
+                // Remove matched symbols
+                for (const cell of group) {
+                    this.grid[cell.col][cell.row] = null;
                 }
+            }
 
                 // Animate removal
                 await this.animateRemovals(matches);
@@ -606,7 +606,7 @@ export class GameScene extends Phaser.Scene {
             for (let c = 0; c < this.cols; c++) {
                 let writeRow = this.rows - 1;
                 for (let r = this.rows - 1; r >= 0; r--) {
-                    if (this.grid[c][r] != null) {
+                    if (this.grid[c][r] !== null) {
                         if (writeRow !== r) {
                             this.grid[c][writeRow] = this.grid[c][r];
                             this.grid[c][r] = null;
