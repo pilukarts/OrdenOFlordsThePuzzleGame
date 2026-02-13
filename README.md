@@ -107,4 +107,4 @@ Incluye:
 - Flujo general del juego.
 
 ## 📚 Licencia
-Proyecto creativo original sin copyright.
+Proyecto creativo original con copyright.
