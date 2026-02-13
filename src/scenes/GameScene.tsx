@@ -446,18 +446,17 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
-    resolveCascades(): Promise<void> {
-        return new Promise(async (resolve) => {
-            let totalWin = 0;
+    async resolveCascades(): Promise<void> {
+        let totalWin = 0;
 
-            while (true) {
-                const matches = this.findAllMatches();
-                if (matches.length === 0) break;
+        while (true) {
+            const matches = this.findAllMatches();
+            if (matches.length === 0) break;
 
-                // Calculate payout
-                for (const group of matches) {
-                    const size = group.length;
-                    const payoutBase = Math.max(1, size - 2) * this.bet;
+            // Calculate payout
+            for (const group of matches) {
+                const size = group.length;
+                const payoutBase = Math.max(1, size - 2) * this.bet;
                     totalWin += payoutBase * this.cascadeMultiplier;
 
                     // Remove matched symbols
@@ -508,9 +507,10 @@ export class GameScene extends Phaser.Scene {
                 });
             }
 
-            this.time.delayedCall(500, () => resolve());
-        });
-    }
+            await new Promise<void>((resolve) => {
+                this.time.delayedCall(500, () => resolve());
+            });
+        }
 
     findAllMatches(): Array<Array<{ col: number; row: number; key: string }>> {
         const visited: { [key: string]: boolean } = {};
@@ -572,7 +572,10 @@ export class GameScene extends Phaser.Scene {
             const tweens: Promise<void>[] = [];
             for (const cell of toRemove) {
                 const found = this.tileGroup?.getChildren().find(
-                    (t: any) => t.getData('col') === cell.col && t.getData('row') === cell.row
+                    (t: Phaser.GameObjects.GameObject) => {
+                        const img = t as Phaser.GameObjects.Image;
+                        return img.getData('col') === cell.col && img.getData('row') === cell.row;
+                    }
                 ) as Phaser.GameObjects.Image | undefined;
 
                 if (found) {
