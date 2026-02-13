@@ -13,6 +13,7 @@ Un proyecto de juegos de puzzle inspirado en mecánicas de slot con elementos de
 - [Estructura del Proyecto](#-estructura-del-proyecto)
 - [Scripts Disponibles](#-scripts-disponibles)
 - [Documentación](#-documentación)
+- [Deployment](#-deployment)
 - [Desarrollo](#-desarrollo)
 - [Concepto: Orden of Lords](#-concepto-orden-of-lords)
 - [Licencia](#-licencia)
@@ -194,6 +195,59 @@ La documentación completa está disponible en el directorio [`docs/`](docs/):
    - Especificaciones de tipografía
    - Paleta de colores
    - Detalles de animaciones
+
+4. **[TELEGRAM_SETUP.md](docs/TELEGRAM_SETUP.md)** 🆕
+   - Configuración de notificaciones de Telegram
+   - Integración con GitHub Actions
+   - Guía paso a paso completa
+
+---
+
+## 🌐 Deployment
+
+### GitHub Pages
+
+El proyecto está configurado para **deployment automático** a GitHub Pages:
+
+🔗 **URL del juego:** `https://pilukarts.github.io/OrdenOFlordsThePuzzleGame/`
+
+#### Configuración Automática
+
+El proyecto usa **GitHub Actions** para deployment automático:
+- ✅ Se activa automáticamente con cada push a las branches `main` o `copilot/create-cygnus-6-style-game`
+- ✅ Build y deployment automáticos
+- ✅ No requiere configuración manual
+- ✅ URL estable y permanente
+
+#### Deployment Manual
+
+Si necesitas hacer un deployment manual:
+
+```bash
+# 1. Build del proyecto
+npm run build
+
+# 2. El contenido está en la carpeta dist/
+# 3. GitHub Actions lo desplegará automáticamente al hacer push
+```
+
+#### Ver el Workflow
+
+Puedes ver el estado del deployment en:
+- **GitHub Actions**: `https://github.com/pilukarts/OrdenOFlordsThePuzzleGame/actions`
+- **Archivo del workflow**: [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
+
+### 📱 Notificaciones de Telegram (Opcional)
+
+El proyecto incluye soporte para **notificaciones de Telegram** cuando ocurre un deployment:
+
+- ✅ Notificaciones de éxito con URL del sitio
+- ❌ Alertas de errores si falla el deployment
+- 🔧 Fácil de activar/desactivar
+
+**Para configurar:** Ver la guía completa en [`docs/TELEGRAM_SETUP.md`](docs/TELEGRAM_SETUP.md)
+
+**Estado actual:** 💤 Desactivado por defecto (comentado en el workflow)
 
 ---
 

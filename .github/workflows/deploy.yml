@@ -53,3 +53,39 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # Telegram Notification (opcional - activar cuando se necesite)
+      # Para activar: descomentar las líneas siguientes y configurar los secrets
+      # TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en Settings > Secrets
+      # - name: Send Telegram Notification on Success
+      #   if: success()
+      #   uses: appleboy/telegram-action@master
+      #   with:
+      #     to: ${{ secrets.TELEGRAM_CHAT_ID }}
+      #     token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      #     message: |
+      #       ✅ Deployment exitoso!
+      #       
+      #       🎮 Proyecto: ${{ github.repository }}
+      #       🌿 Branch: ${{ github.ref_name }}
+      #       👤 Por: ${{ github.actor }}
+      #       📝 Commit: ${{ github.event.head_commit.message }}
+      #       🔗 URL: ${{ steps.deployment.outputs.page_url }}
+      #       
+      #       ⏰ Tiempo: ${{ github.event.head_commit.timestamp }}
+
+      # - name: Send Telegram Notification on Failure
+      #   if: failure()
+      #   uses: appleboy/telegram-action@master
+      #   with:
+      #     to: ${{ secrets.TELEGRAM_CHAT_ID }}
+      #     token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      #     message: |
+      #       ❌ Deployment falló!
+      #       
+      #       🎮 Proyecto: ${{ github.repository }}
+      #       🌿 Branch: ${{ github.ref_name }}
+      #       👤 Por: ${{ github.actor }}
+      #       📝 Commit: ${{ github.event.head_commit.message }}
+      #       
+      #       Por favor revisa los logs en GitHub Actions.
