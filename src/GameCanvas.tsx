@@ -13,8 +13,8 @@ const GameCanvas: React.FC = () => {
 
         const config: Phaser.Types.Core.GameConfig = {
             type: Phaser.AUTO,
-            width: 480,
-            height: 480,
+            width: 900,
+            height: 650,
             parent: 'phaser-container',
             scene: [GameScene], // Carga nuestra nueva escena
         };
@@ -27,7 +27,7 @@ const GameCanvas: React.FC = () => {
         };
     }, []);
 
-    return <div id="phaser-container" style={{ width: '480px', height: '480px' }} />;
+    return <div id="phaser-container" style={{ width: '900px', height: '650px' }} />;
 };
 
 export default GameCanvas;
