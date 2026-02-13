@@ -1,13 +1,179 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>orden_of_lords</title>
-  </head>
-  <body>
-    <div id="root"></div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orden of Lords - The Puzzle Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(180deg, #0a0e27 0%, #1a1f3a 100%);
+            font-family: 'Cinzel', serif;
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* === LOGO ARRIBA === */
+        .logo-container {
+            text-align: center;
+            padding: 30px 20px 20px 20px;
+        }
+
+        .main-logo {
+            max-width: 300px;
+            height: auto;
+            filter: drop-shadow(0 4px 12px rgba(255, 215, 0, 0.4));
+        }
+
+        /* === 4 LORDS CIRCULARES === */
+        .lords-container {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin: 20px 0 30px 0;
+            padding: 20px;
+        }
+
+        .lord-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .lord-item:hover {
+            transform: scale(1.1);
+        }
+
+        .lord-portrait {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid;
+            padding: 5px;
+            background: rgba(0, 0, 0, 0.4);
+            object-fit: cover;
+            transition: all 0.3s ease;
+        }
+
+        .lord-ignis .lord-portrait {
+            border-color: #FF4500;
+            box-shadow: 0 0 20px rgba(255, 69, 0, 0.6);
+        }
+
+        .lord-ventus .lord-portrait {
+            border-color: #32CD32;
+            box-shadow: 0 0 20px rgba(50, 205, 50, 0.6);
+        }
+
+        .lord-aqua .lord-portrait {
+            border-color: #1E90FF;
+            box-shadow: 0 0 20px rgba(30, 144, 255, 0.6);
+        }
+
+        .lord-terra .lord-portrait {
+            border-color: #FFD700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+        }
+
+        .lord-item:hover .lord-portrait {
+            transform: scale(1.05);
+        }
+
+        .lord-name {
+            margin-top: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .lord-ignis .lord-name { color: #FF4500; }
+        .lord-ventus .lord-name { color: #32CD32; }
+        .lord-aqua .lord-name { color: #1E90FF; }
+        .lord-terra .lord-name { color: #FFD700; }
+
+        /* === CANVAS DEL JUEGO === */
+        #game-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+        }
+
+        canvas {
+            border: 3px solid #ffd700;
+            border-radius: 15px;
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
+        }
+
+        /* === RESPONSIVE === */
+        @media (max-width: 768px) {
+            .main-logo {
+                max-width: 200px;
+            }
+
+            .lords-container {
+                gap: 20px;
+            }
+
+            .lord-portrait {
+                width: 60px;
+                height: 60px;
+                border-width: 3px;
+            }
+
+            .lord-name {
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- LOGO EN PIEDRA -->
+    <div class="logo-container">
+        <img src="/OrdenOFlordsThePuzzleGame/assets/logo en piedra.png" alt="Orden of Lords" class="main-logo">
+    </div>
+
+    <!-- 4 LORDS EN HORIZONTAL -->
+    <div class="lords-container">
+        <div class="lord-item lord-ignis" data-lord="ignis">
+            <img src="/OrdenOFlordsThePuzzleGame/assets/LordIgnis.1.png" alt="Lord Ignis" class="lord-portrait">
+            <div class="lord-name">Lord Ignis</div>
+        </div>
+
+        <div class="lord-item lord-ventus" data-lord="ventus">
+            <img src="/OrdenOFlordsThePuzzleGame/assets/damaentus (sinfondo).png" alt="Dama Ventus" class="lord-portrait">
+            <div class="lord-name">Dama Ventus</div>
+        </div>
+
+        <div class="lord-item lord-aqua" data-lord="aqua">
+            <img src="/OrdenOFlordsThePuzzleGame/assets/ladyAqua.1.png" alt="Lady Aqua" class="lord-portrait">
+            <div class="lord-name">Lady Aqua</div>
+        </div>
+
+        <div class="lord-item lord-terra" data-lord="terra">
+            <img src="/OrdenOFlordsThePuzzleGame/assets/sirTerra.1.png" alt="Sir Terra" class="lord-portrait">
+            <div class="lord-name">Sir Terra</div>
+        </div>
+    </div>
+
+    <!-- CANVAS DEL JUEGO -->
+    <div id="game-container">
+        <div id="game"></div>
+    </div>
+
     <script type="module" src="/src/main.tsx"></script>
-  </body>
+</body>
 </html>
