@@ -725,47 +725,130 @@ export class GameScene extends Phaser.Scene {
     }
     
     private applyCascade(): void {
-        let gemsMoved = false;
+        // Apply gravity to all columns
+        this.applyGravityToAllColumns();
         
-        // Move gems down to fill gaps
+        // Wait for gravity animations to complete, then refill
+        this.time.delayedCall(300, () => {
+            this.refillEmptySpaces();
+        });
+    }
+    
+    private applyGravityToAllColumns(): void {
+        // Process each column independently
+        for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
+            this.applyGravityToColumn(col);
+        }
+    }
+    
+    private applyGravityToColumn(col: number): void {
+        // Compact all non-null gems to the bottom of the column
+        const gems: Phaser.GameObjects.Container[] = [];
+        
+        // Collect all non-null gems in this column from bottom to top
         for (let row = GAME_CONFIG.hexRows - 1; row >= 0; row--) {
-            for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
-                if (this.grid[row][col] !== null) continue;
-                
-                // Find gem above
-                for (let searchRow = row - 1; searchRow >= 0; searchRow--) {
-                    const gem = this.grid[searchRow][col];
-                    if (!gem) continue;
-                    
-                    // Move gem down
-                    this.grid[row][col] = gem;
-                    this.grid[searchRow][col] = null;
-                    
-                    gem.setData('row', row);
-                    
-                    const targetPixel = hexToPixel(col, row);
-                    const targetY = this.gridStartY + targetPixel.y;
-                    
-                    this.tweens.add({
-                        targets: gem,
-                        y: targetY,
-                        duration: 300,
-                        ease: 'Bounce.easeOut'
-                    });
-                    
-                    gemsMoved = true;
-                    break;
+            const gem = this.grid[row][col];
+            if (gem !== null) {
+                gems.push(gem);
+            }
+        }
+        
+        // Clear the entire column
+        for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
+            this.grid[row][col] = null;
+        }
+        
+        // Place gems back starting from the bottom
+        for (let i = 0; i < gems.length; i++) {
+            const targetRow = GAME_CONFIG.hexRows - 1 - i;
+            const gem = gems[i];
+            
+            this.grid[targetRow][col] = gem;
+            gem.setData('row', targetRow);
+            gem.setData('col', col);
+            
+            // Animate gem falling to new position
+            const targetPixel = hexToPixel(col, targetRow);
+            const targetY = this.gridStartY + targetPixel.y;
+            
+            this.tweens.add({
+                targets: gem,
+                y: targetY,
+                duration: 300,
+                ease: 'Bounce.easeOut'
+            });
+        }
+    }
+    
+    private refillEmptySpaces(): void {
+        const refillPromises: Promise<void>[] = [];
+        
+        // Find all empty spaces and generate new gems
+        for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
+            for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
+                if (this.grid[row][col] === null) {
+                    refillPromises.push(this.createAndDropNewGem(col, row));
                 }
             }
         }
         
-        if (gemsMoved) {
-            // Check for matches again after cascade
-            this.time.delayedCall(400, () => this.checkMatches());
+        // Wait for all gems to be created and settled
+        if (refillPromises.length > 0) {
+            Promise.all(refillPromises).then(() => {
+                // Wait a bit for visual settle, then check for new matches
+                this.time.delayedCall(400, () => this.checkMatches());
+            });
         } else {
-            // No more cascades, end round
-            this.endRound();
+            // No refill needed, check for matches or end round
+            this.time.delayedCall(200, () => this.checkMatches());
         }
+    }
+    
+    private createAndDropNewGem(col: number, row: number): Promise<void> {
+        return new Promise((resolve) => {
+            const gemType = getRandomGemType(this.lordsThisRound);
+            
+            // Calculate target position
+            const targetPixel = hexToPixel(col, row);
+            const targetX = this.gridStartX + targetPixel.x;
+            const targetY = this.gridStartY + targetPixel.y;
+            
+            // Start position above the grid
+            const startY = this.gridStartY - 100 - (GAME_CONFIG.hexRows - row) * 30;
+            
+            // Create the gem based on type
+            let gem: Phaser.GameObjects.Container;
+            
+            if (gemType.startsWith('mascot_')) {
+                const color = gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow';
+                gem = createMascotGem(this, targetX, startY, color);
+            } else if (gemType.startsWith('lord_')) {
+                const lordType = gemType.split('_')[1] as 'ignis' | 'ventus' | 'aqua' | 'terra';
+                gem = createLordGem(this, targetX, startY, lordType);
+            } else if (gemType === 'black_gem') {
+                gem = createBlackGem(this, targetX, startY);
+            } else if (gemType.startsWith('bomb_')) {
+                const bombType = gemType.split('_')[1] as 'small' | 'medium' | 'large' | 'line' | 'color';
+                gem = createBombGem(this, targetX, startY, bombType);
+            } else {
+                // Fallback to red mascot
+                gem = createMascotGem(this, targetX, startY, 'red');
+            }
+            
+            // Set data
+            gem.setData('col', col);
+            gem.setData('row', row);
+            this.grid[row][col] = gem;
+            
+            // Animate falling with less bounce for cascades
+            this.tweens.add({
+                targets: gem,
+                y: targetY,
+                duration: 400,
+                ease: 'Cubic.easeOut',
+                onComplete: () => resolve()
+            });
+        });
     }
     
     private addWin(amount: number, isSpecial: boolean = false): void {
