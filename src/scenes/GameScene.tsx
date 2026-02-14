@@ -742,20 +742,19 @@ export class GameScene extends Phaser.Scene {
                     this.grid[searchRow][col] = null;
                     
                     gem.setData('row', row);
-                        
-                        const targetPixel = hexToPixel(col, row);
-                        const targetY = this.gridStartY + targetPixel.y;
-                        
-                        this.tweens.add({
-                            targets: gem,
-                            y: targetY,
-                            duration: 300,
-                            ease: 'Bounce.easeOut'
-                        });
-                        
-                        gemsMoved = true;
-                        break;
-                    }
+                    
+                    const targetPixel = hexToPixel(col, row);
+                    const targetY = this.gridStartY + targetPixel.y;
+                    
+                    this.tweens.add({
+                        targets: gem,
+                        y: targetY,
+                        duration: 300,
+                        ease: 'Bounce.easeOut'
+                    });
+                    
+                    gemsMoved = true;
+                    break;
                 }
             }
         }
