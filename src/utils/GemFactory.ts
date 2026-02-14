@@ -25,7 +25,8 @@ export function createMascotGem(
     scene: Phaser.Scene,
     x: number,
     y: number,
-    color: 'red' | 'green' | 'blue' | 'yellow'
+    color: 'red' | 'green' | 'blue' | 'yellow',
+    skipAnimations: boolean = false
 ): Phaser.GameObjects.Container {
     const container = scene.add.container(x, y);
     const config = MASCOT_CONFIG[color];
@@ -76,26 +77,29 @@ export function createMascotGem(
     container.setData('color', color);
     container.setData('sparkle', sparkle);
     
-    // Float animation
-    scene.tweens.add({
-        targets: container,
-        y: y + GAME_CONFIG.animations.gemFloat.yOffset,
-        duration: GAME_CONFIG.animations.gemFloat.duration,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
-    
-    // Sparkle animation
-    scene.tweens.add({
-        targets: sparkle,
-        alpha: { from: 0, to: 1 },
-        angle: 180,
-        duration: GAME_CONFIG.animations.sparkle.duration,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
+    // Only start animations if NOT skipped
+    if (!skipAnimations) {
+        // Float animation
+        scene.tweens.add({
+            targets: container,
+            y: y + GAME_CONFIG.animations.gemFloat.yOffset,
+            duration: GAME_CONFIG.animations.gemFloat.duration,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        // Sparkle animation
+        scene.tweens.add({
+            targets: sparkle,
+            alpha: { from: 0, to: 1 },
+            angle: 180,
+            duration: GAME_CONFIG.animations.sparkle.duration,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
     
     return container;
 }
@@ -107,7 +111,8 @@ export function createLordGem(
     scene: Phaser.Scene,
     x: number,
     y: number,
-    lordType: 'ignis' | 'ventus' | 'aqua' | 'terra'
+    lordType: 'ignis' | 'ventus' | 'aqua' | 'terra',
+    skipAnimations: boolean = false
 ): Phaser.GameObjects.Container {
     const container = scene.add.container(x, y);
     const config = LORD_CONFIG[lordType];
@@ -168,35 +173,38 @@ export function createLordGem(
     container.setData('lordType', lordType);
     container.setData('color', config.matchColor);
     
-    // Float animation (more dramatic for Lords)
-    scene.tweens.add({
-        targets: container,
-        y: y + GAME_CONFIG.animations.lordFloat.yOffset,
-        duration: GAME_CONFIG.animations.lordFloat.duration,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
-    
-    // Rotate animation
-    scene.tweens.add({
-        targets: container,
-        angle: GAME_CONFIG.animations.lordRotate.angle,
-        duration: GAME_CONFIG.animations.lordRotate.duration,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
-    
-    // Glow pulse
-    scene.tweens.add({
-        targets: outerGlow,
-        alpha: { from: 0.3, to: 0.6 },
-        duration: GAME_CONFIG.animations.glowPulse.duration,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
+    // Only start animations if NOT skipped
+    if (!skipAnimations) {
+        // Float animation (more dramatic for Lords)
+        scene.tweens.add({
+            targets: container,
+            y: y + GAME_CONFIG.animations.lordFloat.yOffset,
+            duration: GAME_CONFIG.animations.lordFloat.duration,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        // Rotate animation
+        scene.tweens.add({
+            targets: container,
+            angle: GAME_CONFIG.animations.lordRotate.angle,
+            duration: GAME_CONFIG.animations.lordRotate.duration,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        // Glow pulse
+        scene.tweens.add({
+            targets: outerGlow,
+            alpha: { from: 0.3, to: 0.6 },
+            duration: GAME_CONFIG.animations.glowPulse.duration,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
     
     return container;
 }
@@ -207,7 +215,8 @@ export function createLordGem(
 export function createBlackGem(
     scene: Phaser.Scene,
     x: number,
-    y: number
+    y: number,
+    skipAnimations: boolean = false
 ): Phaser.GameObjects.Container {
     const container = scene.add.container(x, y);
     const radius = GAME_CONFIG.gemRadius;
@@ -236,15 +245,18 @@ export function createBlackGem(
     container.setData('gemType', 'black_gem');
     container.setData('color', 'black');
     
-    // Ominous pulse
-    scene.tweens.add({
-        targets: aura,
-        alpha: { from: 0.4, to: 0.7 },
-        duration: 1000,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
+    // Only start animations if NOT skipped
+    if (!skipAnimations) {
+        // Ominous pulse
+        scene.tweens.add({
+            targets: aura,
+            alpha: { from: 0.4, to: 0.7 },
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
     
     return container;
 }
@@ -256,7 +268,8 @@ export function createBombGem(
     scene: Phaser.Scene,
     x: number,
     y: number,
-    bombType: 'small' | 'medium' | 'large' | 'line' | 'color'
+    bombType: 'small' | 'medium' | 'large' | 'line' | 'color',
+    skipAnimations: boolean = false
 ): Phaser.GameObjects.Container {
     const container = scene.add.container(x, y);
     const radius = GAME_CONFIG.gemRadius;
@@ -293,15 +306,18 @@ export function createBombGem(
     container.setData('gemType', `bomb_${bombType}`);
     container.setData('bombType', bombType);
     
-    // Ticking animation
-    scene.tweens.add({
-        targets: container,
-        scale: { from: 1, to: 1.1 },
-        duration: 500,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-    });
+    // Only start animations if NOT skipped
+    if (!skipAnimations) {
+        // Ticking animation
+        scene.tweens.add({
+            targets: container,
+            scale: { from: 1, to: 1.1 },
+            duration: 500,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+    }
     
     return container;
 }
