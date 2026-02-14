@@ -94,7 +94,7 @@ export const GAME_CONFIG = {
         8: 4.0,
         9: 4.5,
         10: 5.0
-    } as { [key: number]: number },
+    } satisfies Record<number, number>,
     
     comboMultipliers: {
         1: 1.0,
@@ -103,16 +103,16 @@ export const GAME_CONFIG = {
         4: 2.0,
         5: 3.0,
         6: 4.0
-    } as { [key: number]: number },
+    } satisfies Record<number, number>,
     
     lordPowerMultiplier: 10,
     superBonusReward: 10000,
     
-    // ========================================
-    // ROUND CONFIGURATION
-    // ========================================
-    gemsPerRound: { min: 8, max: 12 },
-    gemDropDelay: 800,
+    roundConfiguration: {
+        gemsPerRound: { min: 8, max: 12 },
+        gemDropDelay: 800,
+        settlementDelay: 2000
+    },
     
     // ========================================
     // COLORS (HEX)
@@ -304,14 +304,14 @@ export const MASCOT_CONFIG = {
  * Get match multiplier based on cluster size
  */
 export function getMatchMultiplier(clusterSize: number): number {
-    return GAME_CONFIG.matchMultipliers[clusterSize] || 
-           GAME_CONFIG.matchMultipliers[10]; // Default to max
+    const multipliers = GAME_CONFIG.matchMultipliers as Record<number, number>;
+    return multipliers[clusterSize] || multipliers[10];
 }
 
 /**
  * Get combo multiplier based on cascade level
  */
 export function getComboMultiplier(cascadeLevel: number): number {
-    return GAME_CONFIG.comboMultipliers[cascadeLevel] || 
-           GAME_CONFIG.comboMultipliers[6]; // Default to max
+    const multipliers = GAME_CONFIG.comboMultipliers as Record<number, number>;
+    return multipliers[cascadeLevel] || multipliers[6];
 }

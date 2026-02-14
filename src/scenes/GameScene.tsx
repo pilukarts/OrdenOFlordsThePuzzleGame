@@ -417,21 +417,21 @@ export class GameScene extends Phaser.Scene {
     
     private dropGems(): void {
         const numGems = Phaser.Math.Between(
-            GAME_CONFIG.gemsPerRound.min,
-            GAME_CONFIG.gemsPerRound.max
+            GAME_CONFIG.roundConfiguration.gemsPerRound.min,
+            GAME_CONFIG.roundConfiguration.gemsPerRound.max
         );
         
         let gemsDropped = 0;
         
         const dropInterval = this.time.addEvent({
-            delay: GAME_CONFIG.gemDropDelay,
+            delay: GAME_CONFIG.roundConfiguration.gemDropDelay,
             callback: () => {
                 this.dropSingleGem();
                 gemsDropped++;
                 
                 if (gemsDropped >= numGems) {
                     dropInterval.remove();
-                    this.time.delayedCall(2000, () => this.onAllGemsSettled());
+                    this.time.delayedCall(GAME_CONFIG.roundConfiguration.settlementDelay, () => this.onAllGemsSettled());
                 }
             },
             repeat: numGems - 1
@@ -484,7 +484,7 @@ export class GameScene extends Phaser.Scene {
             const pixelPos = { x: gem.x - this.gridStartX, y: gem.y - this.gridStartY };
             const hexPos = this.findNearestEmptyHex(pixelPos.x, pixelPos.y);
             
-            if (hexPos) {
+            if (hexPos !== null) {
                 const targetPixel = hexToPixel(hexPos.col, hexPos.row);
                 const targetX = this.gridStartX + targetPixel.x;
                 const targetY = this.gridStartY + targetPixel.y;

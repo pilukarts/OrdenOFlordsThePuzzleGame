@@ -138,7 +138,13 @@ export function createLordGem(
     // Lord face portrait
     const face = scene.add.image(0, 0, config.assetKey);
     face.setDisplaySize(radius * 1.6, radius * 1.6);
-    face.setMask(new Phaser.Display.Masks.GeometryMask(scene, gemCircle));
+    
+    // Create circular mask for face
+    const maskShape = scene.make.graphics({ x: 0, y: 0 });
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillCircle(x, y, radius);
+    const mask = maskShape.createGeometryMask();
+    face.setMask(mask);
     
     // Crown icon (small)
     const crown = scene.add.text(0, -radius * 0.7, '👑', {
