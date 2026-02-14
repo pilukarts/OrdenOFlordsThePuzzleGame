@@ -813,8 +813,8 @@ export class GameScene extends Phaser.Scene {
             const targetX = this.gridStartX + targetPixel.x;
             const targetY = this.gridStartY + targetPixel.y;
             
-            // Start position above the grid
-            const startY = this.gridStartY - 100 - (GAME_CONFIG.hexRows - row) * 30;
+            // Start all new gems from same height above the grid for consistent animation
+            const startY = this.gridStartY - 200;
             
             // Create the gem based on type
             let gem: Phaser.GameObjects.Container;
