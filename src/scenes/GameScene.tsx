@@ -1113,6 +1113,13 @@ export class GameScene extends Phaser.Scene {
     
     private createAndDropNewGem(col: number, row: number): Promise<void> {
         return new Promise((resolve) => {
+            // 🐛 DEBUG: Check if position is already occupied
+            if (this.grid[row][col] !== null) {
+                console.warn('[CASCADE] Skipping occupied cell:', row, col);
+                resolve();
+                return;
+            }
+            
             const gemType = getRandomGemType(this.lordsThisRound);
             
             // Calculate target position
@@ -1122,6 +1129,9 @@ export class GameScene extends Phaser.Scene {
             
             // Start position: directly above the target column
             const startY = this.gridStartY - 300;
+            
+            // 🐛 DEBUG: Log positions
+            console.log(`[CASCADE] Gem ${gemType} col=${col} row=${row} startY=${startY} targetY=${targetY} distance=${targetY - startY}`);
             
             // Create the gem at TARGET X position (no horizontal movement needed)
             let gem: Phaser.GameObjects.Container;
@@ -1155,19 +1165,43 @@ export class GameScene extends Phaser.Scene {
                 this.tweens.killTweensOf(child);
             });
             
+            // 🐛 CRITICAL: Ensure tween manager is not paused
+            if (this.tweens.paused) {
+                console.warn('[CASCADE] Tweens were paused, resuming...');
+                this.tweens.paused = false;
+            }
+            
             // 🎯 Pure vertical fall animation - NO physics, NO horizontal movement
             this.tweens.add({
                 targets: gem,
                 y: targetY,
                 duration: 500,  // Slightly longer for smooth fall
                 ease: 'Cubic.easeIn',  // Natural gravity feel
+                onStart: () => {
+                    console.log(`[CASCADE] Tween started for gem at col=${col} row=${row}`);
+                },
+                onUpdate: (_tween, target) => {
+                    console.log(`[CASCADE] Tween update: y=${target.y}`);
+                },
                 onComplete: () => {
+                    console.log(`[CASCADE] Tween complete for gem at col=${col} row=${row}, final y=${gem.y}`);
+                    
                     // Re-enable idle animations after landing
                     this.reEnableGemAnimations(gem, targetY);
                     
                     // Check if this lord landed in mid-air or base
                     this.checkWildLanding(gem, row, col);
                     
+                    resolve();
+                }
+            });
+            
+            // 🐛 SAFETY: If tween doesn't complete within 2 seconds, force resolve
+            this.time.delayedCall(2000, () => {
+                if (gem.y !== targetY) {
+                    console.error(`[CASCADE] Tween timeout! Gem stuck at y=${gem.y}, expected y=${targetY}`);
+                    gem.y = targetY;  // Force position
+                    this.reEnableGemAnimations(gem, targetY);
                     resolve();
                 }
             });
