@@ -139,10 +139,10 @@ export function createLordGem(
     const face = scene.add.image(0, 0, config.assetKey);
     face.setDisplaySize(radius * 1.6, radius * 1.6);
     
-    // Create circular mask for face
+    // Create circular mask for face (at origin since face is in container)
     const maskShape = scene.make.graphics({ x: 0, y: 0 });
     maskShape.fillStyle(0xffffff);
-    maskShape.fillCircle(x, y, radius);
+    maskShape.fillCircle(0, 0, radius);
     const mask = maskShape.createGeometryMask();
     face.setMask(mask);
     

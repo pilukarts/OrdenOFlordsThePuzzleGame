@@ -62,8 +62,7 @@ function floodFill(
     const queue: HexCoord[] = [{ col: startCol, row: startRow }];
     
     while (queue.length > 0) {
-        const current = queue.shift();
-        if (!current) break; // Safety check
+        const current = queue.shift()!; // queue.length > 0 guarantees this is defined
         
         const key = `${current.col},${current.row}`;
         

@@ -81,7 +81,9 @@ export class GameScene extends Phaser.Scene {
         const { width, height } = this.cameras.main;
         
         // Enable physics with gravity
-        this.physics.world.gravity.y = GAME_CONFIG.gravity;
+        if (this.physics && this.physics.world) {
+            this.physics.world.gravity.y = GAME_CONFIG.gravity;
+        }
         
         // Background
         const bg = this.add.image(0, 0, 'background');
@@ -144,7 +146,9 @@ export class GameScene extends Phaser.Scene {
                 const xPos = this.gridStartX + offset + i * pinConfig.horizontalSpacing + 100;
                 
                 const pin = this.add.circle(xPos, yPos, pinConfig.radius, 0x8B4513);
-                this.physics.add.existing(pin, true);
+                if (this.physics && this.physics.add) {
+                    this.physics.add.existing(pin, true);
+                }
                 this.pins.push(pin);
             }
             
@@ -462,6 +466,11 @@ export class GameScene extends Phaser.Scene {
         }
         
         // Add physics
+        if (!this.physics || !this.physics.add) {
+            console.error('Physics system not initialized. Ensure arcade physics is enabled in GameCanvas.tsx configuration.');
+            return;
+        }
+        
         this.physics.add.existing(gem);
         const body = gem.body as Phaser.Physics.Arcade.Body;
         body.setVelocity(
@@ -505,7 +514,9 @@ export class GameScene extends Phaser.Scene {
                 // Disable physics
                 const body = gem.body as Phaser.Physics.Arcade.Body;
                 body.setVelocity(0, 0);
-                this.physics.world.disable(gem);
+                if (this.physics && this.physics.world) {
+                    this.physics.world.disable(gem);
+                }
             } else {
                 // No space, destroy gem
                 gem.destroy();
@@ -723,15 +734,14 @@ export class GameScene extends Phaser.Scene {
                 
                 // Find gem above
                 for (let searchRow = row - 1; searchRow >= 0; searchRow--) {
-                    if (this.grid[searchRow][col] !== null) {
-                        const gem = this.grid[searchRow][col];
-                        if (!gem) continue;
-                        
-                        // Move gem down
-                        this.grid[row][col] = gem;
-                        this.grid[searchRow][col] = null;
-                        
-                        gem.setData('row', row);
+                    const gem = this.grid[searchRow][col];
+                    if (!gem) continue;
+                    
+                    // Move gem down
+                    this.grid[row][col] = gem;
+                    this.grid[searchRow][col] = null;
+                    
+                    gem.setData('row', row);
                         
                         const targetPixel = hexToPixel(col, row);
                         const targetY = this.gridStartY + targetPixel.y;
