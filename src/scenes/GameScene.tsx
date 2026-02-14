@@ -5,7 +5,8 @@
 
 import Phaser from 'phaser';
 import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
-import { hexToPixel } from '../utils/HexGrid';
+import { MAX_WIN_CONFIG } from '../config/MaxWinConfig';
+import { hexToPixel, getHexNeighbors } from '../utils/HexGrid';
 import { createMascotGem, createLordGem, createBlackGem, createBombGem, getRandomGemType } from '../utils/GemFactory';
 import { findClusters, checkLordPower, findAllGemsOfColor, getBombExplosionGems } from '../utils/ClusterDetector';
 import type { Cluster } from '../utils/ClusterDetector';
@@ -38,6 +39,12 @@ export class GameScene extends Phaser.Scene {
     private roundInfoText?: Phaser.GameObjects.Text;
     private lordsIndicator?: Phaser.GameObjects.Container;
     private winDisplays: Phaser.GameObjects.Text[] = [];
+    
+    // MAX WIN system
+    private lordsCaptured: number = 0;
+    private maxWinMeter?: Phaser.GameObjects.Container;
+    private maxWinProgressBar?: Phaser.GameObjects.Graphics;
+    private maxWinText?: Phaser.GameObjects.Text;
     
     // Frame bounds
     private frameCenterX = 0;
@@ -118,6 +125,9 @@ export class GameScene extends Phaser.Scene {
         
         // Create Lords indicator
         this.createLordsIndicator();
+        
+        // Create MAX WIN meter
+        this.createMaxWinMeter();
     }
 
     // ========================================
@@ -308,6 +318,300 @@ export class GameScene extends Phaser.Scene {
             
             this.lordsIndicator?.add([bg, text]);
         });
+    }
+
+    // ========================================
+    // MAX WIN METER SYSTEM
+    // ========================================
+    
+    private createMaxWinMeter(): void {
+        const config = MAX_WIN_CONFIG;
+        const { x, y } = config.meterPosition;
+        const { width, height } = config.meterSize;
+        
+        this.maxWinMeter = this.add.container(x, y);
+        this.maxWinMeter.setDepth(20);
+        
+        // Background
+        const bg = this.add.rectangle(0, 0, width, height, 0x000000, 0.8);
+        bg.setStrokeStyle(3, 0xFFD700);
+        
+        // Title
+        const title = this.add.text(0, -height/2 + 20, 'MAX WIN', {
+            fontSize: '20px',
+            color: '#FFD700',
+            fontFamily: 'Arial',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        
+        // Progress bar background
+        const barBg = this.add.rectangle(0, 0, width - 20, height - 100, 0x333333, 1);
+        
+        // Progress bar fill (initially empty)
+        this.maxWinProgressBar = this.add.graphics();
+        
+        // Counter text
+        this.maxWinText = this.add.text(0, height/2 - 40, '0/15 Lords', {
+            fontSize: '16px',
+            color: '#FFFFFF',
+            fontFamily: 'Arial'
+        }).setOrigin(0.5);
+        
+        this.maxWinMeter.add([bg, title, barBg, this.maxWinProgressBar, this.maxWinText]);
+        
+        this.updateMaxWinMeter();
+    }
+    
+    private updateMaxWinMeter(): void {
+        if (!this.maxWinProgressBar || !this.maxWinText) return;
+        
+        const config = MAX_WIN_CONFIG;
+        const maxLords = config.levels[config.levels.length - 1].lordsRequired;
+        const percentage = this.lordsCaptured / maxLords;
+        
+        // Find current level
+        let currentLevel = config.levels[0];
+        for (const level of config.levels) {
+            if (this.lordsCaptured < level.lordsRequired) {
+                currentLevel = level;
+                break;
+            }
+        }
+        
+        // Update progress bar
+        const { width, height } = config.meterSize;
+        const barHeight = height - 100;
+        const fillHeight = barHeight * percentage;
+        
+        this.maxWinProgressBar.clear();
+        this.maxWinProgressBar.fillStyle(currentLevel.color, 1);
+        this.maxWinProgressBar.fillRect(
+            -(width - 20) / 2,
+            (barHeight / 2) - fillHeight,
+            width - 20,
+            fillHeight
+        );
+        
+        // Update text
+        this.maxWinText?.setText(`${this.lordsCaptured}/${maxLords} Lords\n${currentLevel.emoji} ${currentLevel.name}`);
+        
+        // Animate if just updated
+        if (this.maxWinMeter) {
+            this.tweens.add({
+                targets: this.maxWinMeter,
+                scale: { from: 1, to: 1.05 },
+                duration: 300,
+                yoyo: true,
+                ease: 'Sine.easeInOut'
+            });
+        }
+    }
+    
+    private checkWildLanding(gem: Phaser.GameObjects.Container, row: number, col: number): void {
+        const lordType = gem.getData('lordType');
+        if (!lordType) return;
+        
+        const isBase = (row === GAME_CONFIG.hexRows - 1);
+        
+        if (isBase) {
+            // Base landing: Check for merge opportunity
+            this.checkLordMerge(gem, row, col, lordType);
+        } else {
+            // Mid-air landing: Convert to coins and feed MAX WIN meter
+            this.convertLordToCoins(gem, row, col, lordType);
+        }
+    }
+    
+    private checkLordMerge(
+        lordGem: Phaser.GameObjects.Container, 
+        row: number, 
+        col: number, 
+        lordType: string
+    ): void {
+        const neighbors = getHexNeighbors(col, row);
+        const lordConfig = LORD_CONFIG[lordType as keyof typeof LORD_CONFIG];
+        const matchColor = lordConfig.matchColor;
+        
+        // Find adjacent gems of matching color
+        const matchingNeighbors: { col: number; row: number; gem: Phaser.GameObjects.Container }[] = [];
+        
+        for (const neighbor of neighbors) {
+            const gem = this.grid[neighbor.row]?.[neighbor.col];
+            if (!gem) continue;
+            
+            const gemColor = gem.getData('color');
+            if (gemColor === matchColor) {
+                matchingNeighbors.push({ col: neighbor.col, row: neighbor.row, gem });
+            }
+        }
+        
+        // Need at least 2 matching neighbors for merge
+        if (matchingNeighbors.length >= 2) {
+            this.triggerLordMerge(lordGem, matchingNeighbors, lordType);
+        } else {
+            // Not enough neighbors - treat as mid-air
+            this.convertLordToCoins(lordGem, row, col, lordType);
+        }
+    }
+    
+    private triggerLordMerge(
+        lordGem: Phaser.GameObjects.Container,
+        matchingNeighbors: { col: number; row: number; gem: Phaser.GameObjects.Container }[],
+        lordType: string
+    ): void {
+        const lordConfig = LORD_CONFIG[lordType as keyof typeof LORD_CONFIG];
+        
+        // Calculate mega reward
+        const baseValue = GAME_CONFIG.gemValues[`lord_${lordType}` as keyof typeof GAME_CONFIG.gemValues] || 50;
+        const neighborValue = matchingNeighbors.length * 10;
+        const megaMultiplier = 5; // 5x for merge
+        const totalReward = (baseValue + neighborValue) * megaMultiplier * this.currentBet;
+        
+        // Visual: Mega explosion
+        createLordPowerEffect(this, lordGem.x, lordGem.y, lordConfig.baseColor);
+        shakeScreen(this, 2);
+        
+        // Destroy lord and neighbors
+        lordGem.destroy();
+        matchingNeighbors.forEach(n => {
+            createExplosion(this, n.gem.x, n.gem.y, lordConfig.baseColor, 2);
+            n.gem.destroy();
+            this.grid[n.row][n.col] = null;
+        });
+        
+        // Destroy from grid
+        const lordRow = lordGem.getData('row');
+        const lordCol = lordGem.getData('col');
+        this.grid[lordRow][lordCol] = null;
+        
+        // Award mega win
+        this.addWin(totalReward, true);
+        
+        // Show special text
+        const megaText = this.add.text(
+            lordGem.x, lordGem.y,
+            `MEGA MERGE!\n+£${totalReward.toFixed(2)}`,
+            {
+                fontSize: '32px',
+                color: '#FFD700',
+                fontStyle: 'bold',
+                stroke: '#000000',
+                strokeThickness: 6
+            }
+        ).setOrigin(0.5).setDepth(500);
+        
+        this.tweens.add({
+            targets: megaText,
+            y: megaText.y - 100,
+            alpha: { from: 1, to: 0 },
+            duration: 2000,
+            onComplete: () => megaText.destroy()
+        });
+        
+        // Also feed MAX WIN meter
+        this.feedMaxWinMeter();
+    }
+    
+    private convertLordToCoins(
+        lordGem: Phaser.GameObjects.Container,
+        row: number,
+        col: number,
+        lordType: string
+    ): void {
+        const baseValue = GAME_CONFIG.gemValues[`lord_${lordType}` as keyof typeof GAME_CONFIG.gemValues] || 50;
+        const coinReward = baseValue * 2 * this.currentBet; // 2x for mid-air
+        
+        // Visual effect
+        createExplosion(this, lordGem.x, lordGem.y, 0xFFD700, 1.5);
+        
+        // Show coins animation
+        const coinText = this.add.text(
+            lordGem.x, lordGem.y,
+            `💰 +£${coinReward.toFixed(2)}`,
+            {
+                fontSize: '24px',
+                color: '#FFD700',
+                fontStyle: 'bold',
+                stroke: '#000000',
+                strokeThickness: 4
+            }
+        ).setOrigin(0.5).setDepth(500);
+        
+        this.tweens.add({
+            targets: coinText,
+            y: coinText.y - 80,
+            alpha: { from: 1, to: 0 },
+            duration: 1500,
+            onComplete: () => coinText.destroy()
+        });
+        
+        // Destroy gem
+        lordGem.destroy();
+        this.grid[row][col] = null;
+        
+        // Award coins
+        this.addWin(coinReward, false);
+        
+        // Feed MAX WIN meter (CRITICAL)
+        this.feedMaxWinMeter();
+    }
+    
+    private feedMaxWinMeter(): void {
+        this.lordsCaptured++;
+        this.updateMaxWinMeter();
+        
+        const config = MAX_WIN_CONFIG;
+        
+        // Check if we reached a level
+        for (const level of config.levels) {
+            if (this.lordsCaptured === level.lordsRequired) {
+                this.triggerMaxWinLevel(level);
+                break;
+            }
+        }
+    }
+    
+    private triggerMaxWinLevel(level: any): void {
+        const reward = level.reward * this.currentBet;
+        
+        // Visual effect
+        createSuperBonusEffect(this);
+        shakeScreen(this, 3);
+        
+        // Show level achievement
+        const levelText = this.add.text(
+            this.frameCenterX,
+            this.frameCenterY,
+            `${level.emoji} ${level.name} ACHIEVED!\n+£${reward.toFixed(2)}`,
+            {
+                fontSize: '48px',
+                color: `#${level.color.toString(16).padStart(6, '0')}`,
+                fontStyle: 'bold',
+                align: 'center',
+                stroke: '#000000',
+                strokeThickness: 8
+            }
+        ).setOrigin(0.5).setDepth(600);
+        
+        this.tweens.add({
+            targets: levelText,
+            scale: { from: 0, to: 1.5 },
+            duration: 1000,
+            yoyo: true,
+            hold: 1500,
+            onComplete: () => levelText.destroy()
+        });
+        
+        // Award reward
+        this.addWin(reward, true);
+        
+        // Reset if MAX WIN
+        if (level.name === 'MAX WIN' && MAX_WIN_CONFIG.resetOnMaxWin) {
+            this.time.delayedCall(3000, () => {
+                this.lordsCaptured = 0;
+                this.updateMaxWinMeter();
+            });
+        }
     }
 
     // ========================================
@@ -510,6 +814,9 @@ export class GameScene extends Phaser.Scene {
                 gem.setData('col', hexPos.col);
                 gem.setData('row', hexPos.row);
                 this.grid[hexPos.row][hexPos.col] = gem;
+                
+                // Check if it's a lord/wild
+                this.checkWildLanding(gem, hexPos.row, hexPos.col);
                 
                 // Disable physics
                 const body = gem.body as Phaser.Physics.Arcade.Body;
@@ -857,6 +1164,10 @@ export class GameScene extends Phaser.Scene {
                 onComplete: () => {
                     // Re-enable idle animations after landing
                     this.reEnableGemAnimations(gem, targetY);
+                    
+                    // Check if this lord landed in mid-air or base
+                    this.checkWildLanding(gem, row, col);
+                    
                     resolve();
                 }
             });
