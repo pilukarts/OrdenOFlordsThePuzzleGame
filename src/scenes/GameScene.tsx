@@ -1180,9 +1180,6 @@ export class GameScene extends Phaser.Scene {
                 onStart: () => {
                     console.log(`[CASCADE] Tween started for gem at col=${col} row=${row}`);
                 },
-                onUpdate: (_tween, target) => {
-                    console.log(`[CASCADE] Tween update: y=${target.y}`);
-                },
                 onComplete: () => {
                     console.log(`[CASCADE] Tween complete for gem at col=${col} row=${row}, final y=${gem.y}`);
                     
