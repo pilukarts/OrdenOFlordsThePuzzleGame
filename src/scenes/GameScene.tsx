@@ -1171,6 +1171,9 @@ export class GameScene extends Phaser.Scene {
                 this.tweens.paused = false;
             }
             
+            // Track whether promise has been resolved
+            let resolved = false;
+            
             // 🎯 Pure vertical fall animation - NO physics, NO horizontal movement
             this.tweens.add({
                 targets: gem,
@@ -1189,16 +1192,21 @@ export class GameScene extends Phaser.Scene {
                     // Check if this lord landed in mid-air or base
                     this.checkWildLanding(gem, row, col);
                     
-                    resolve();
+                    if (!resolved) {
+                        resolved = true;
+                        resolve();
+                    }
                 }
             });
             
             // 🐛 SAFETY: If tween doesn't complete within 2 seconds, force resolve
             this.time.delayedCall(2000, () => {
-                if (gem.y !== targetY) {
+                // Use epsilon for floating-point comparison
+                if (!resolved && Math.abs(gem.y - targetY) > 0.5) {
                     console.error(`[CASCADE] Tween timeout! Gem stuck at y=${gem.y}, expected y=${targetY}`);
                     gem.y = targetY;  // Force position
                     this.reEnableGemAnimations(gem, targetY);
+                    resolved = true;
                     resolve();
                 }
             });
