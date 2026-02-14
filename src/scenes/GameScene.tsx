@@ -1115,7 +1115,7 @@ export class GameScene extends Phaser.Scene {
         return new Promise((resolve) => {
             // 🐛 DEBUG: Check if position is already occupied
             if (this.grid[row][col] !== null) {
-                console.warn('[CASCADE] Skipping occupied cell:', row, col);
+                console.warn(`[CASCADE] Skipping occupied cell: col=${col} row=${row}`);
                 resolve();
                 return;
             }
