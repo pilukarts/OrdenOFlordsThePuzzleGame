@@ -158,23 +158,23 @@ export const GAME_CONFIG = {
     // ========================================
     animations: {
         gemFloat: {
-            yOffset: 2,
-            duration: 2500
+            yOffset: 3,  // Reduce for more subtle floating
+            duration: 2000
         },
         gemRotate: {
             angle: 3,
             duration: 3000
         },
         lordFloat: {
-            yOffset: 3,
-            duration: 2000
+            yOffset: 5,
+            duration: 2500
         },
         lordRotate: {
-            angle: 5,
-            duration: 3500
+            angle: 3,  // Reduce rotation from 5 to 3 degrees
+            duration: 3000
         },
         sparkle: {
-            duration: 1000
+            duration: 3000
         },
         glowPulse: {
             duration: 1500
@@ -196,11 +196,12 @@ export const GAME_CONFIG = {
     // PIN CONFIGURATION (for pinball physics)
     // ========================================
     pins: {
-        rows: 5,
-        pattern: [3, 2, 3, 2, 3], // pins per row
-        verticalSpacing: 90,
-        horizontalSpacing: 120,
-        radius: 8
+        rows: 1,  // Only 1 row
+        pattern: [3],  // Only 3 pins
+        horizontalSpacing: 120,  // More separated
+        verticalSpacing: 60,
+        radius: 6,
+        bounciness: 0.8
     }
 };
 

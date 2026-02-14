@@ -813,10 +813,10 @@ export class GameScene extends Phaser.Scene {
             const targetX = this.gridStartX + targetPixel.x;
             const targetY = this.gridStartY + targetPixel.y;
             
-            // Start all new gems from same height above the grid for consistent animation
-            const startY = this.gridStartY - 200;
+            // Start position: directly above the target column
+            const startY = this.gridStartY - 300;
             
-            // Create the gem based on type
+            // Create the gem at TARGET X position (no horizontal movement needed)
             let gem: Phaser.GameObjects.Container;
             
             if (gemType.startsWith('mascot_')) {
@@ -840,15 +840,77 @@ export class GameScene extends Phaser.Scene {
             gem.setData('row', row);
             this.grid[row][col] = gem;
             
-            // Animate falling with less bounce for cascades
+            // 🔥 CRITICAL: Kill ALL existing tweens (float, sparkle, rotate, glow)
+            this.tweens.killTweensOf(gem);
+            
+            // Also kill tweens of child elements (sparkle, glow, etc.)
+            gem.each((child: Phaser.GameObjects.GameObject) => {
+                this.tweens.killTweensOf(child);
+            });
+            
+            // 🎯 Pure vertical fall animation - NO physics, NO horizontal movement
             this.tweens.add({
                 targets: gem,
                 y: targetY,
-                duration: 400,
-                ease: 'Cubic.easeOut',
-                onComplete: () => resolve()
+                duration: 500,  // Slightly longer for smooth fall
+                ease: 'Cubic.easeIn',  // Natural gravity feel
+                onComplete: () => {
+                    // Re-enable idle animations after landing
+                    this.reEnableGemAnimations(gem, targetY);
+                    resolve();
+                }
             });
         });
+    }
+    
+    private reEnableGemAnimations(gem: Phaser.GameObjects.Container, baseY: number): void {
+        const gemType = gem.getData('gemType');
+        
+        // Re-enable float animation
+        if (gemType?.startsWith('mascot_')) {
+            this.tweens.add({
+                targets: gem,
+                y: baseY + GAME_CONFIG.animations.gemFloat.yOffset,
+                duration: GAME_CONFIG.animations.gemFloat.duration,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+            
+            // Re-enable sparkle animation
+            const sparkle = gem.getData('sparkle');
+            if (sparkle) {
+                this.tweens.add({
+                    targets: sparkle,
+                    alpha: { from: 0, to: 1 },
+                    angle: 180,
+                    duration: GAME_CONFIG.animations.sparkle.duration,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                });
+            }
+        } else if (gemType?.startsWith('lord_')) {
+            // Lord float animation
+            this.tweens.add({
+                targets: gem,
+                y: baseY + GAME_CONFIG.animations.lordFloat.yOffset,
+                duration: GAME_CONFIG.animations.lordFloat.duration,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+            
+            // Lord rotation
+            this.tweens.add({
+                targets: gem,
+                angle: GAME_CONFIG.animations.lordRotate.angle,
+                duration: GAME_CONFIG.animations.lordRotate.duration,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        }
     }
     
     private addWin(amount: number, isSpecial: boolean = false): void {
