@@ -1128,18 +1128,18 @@ export class GameScene extends Phaser.Scene {
             
             if (gemType.startsWith('mascot_')) {
                 const color = gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow';
-                gem = createMascotGem(this, targetX, startY, color);
+                gem = createMascotGem(this, targetX, startY, color, true);
             } else if (gemType.startsWith('lord_')) {
                 const lordType = gemType.split('_')[1] as 'ignis' | 'ventus' | 'aqua' | 'terra';
-                gem = createLordGem(this, targetX, startY, lordType);
+                gem = createLordGem(this, targetX, startY, lordType, true);
             } else if (gemType === 'black_gem') {
-                gem = createBlackGem(this, targetX, startY);
+                gem = createBlackGem(this, targetX, startY, true);
             } else if (gemType.startsWith('bomb_')) {
                 const bombType = gemType.split('_')[1] as 'small' | 'medium' | 'large' | 'line' | 'color';
-                gem = createBombGem(this, targetX, startY, bombType);
+                gem = createBombGem(this, targetX, startY, bombType, true);
             } else {
                 // Fallback to red mascot
-                gem = createMascotGem(this, targetX, startY, 'red');
+                gem = createMascotGem(this, targetX, startY, 'red', true);
             }
             
             // Set data
