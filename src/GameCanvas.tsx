@@ -16,7 +16,14 @@ const GameCanvas: React.FC = () => {
             width: 900,
             height: 650,
             parent: 'phaser-container',
-            scene: [GameScene], // Carga nuestra nueva escena
+            scene: [GameScene],
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 0, x: 0 },
+                    debug: false
+                }
+            }
         };
 
         gameRef.current = new Phaser.Game(config);
