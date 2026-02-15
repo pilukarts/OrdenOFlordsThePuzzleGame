@@ -4,7 +4,7 @@
  */
 
 import Phaser from 'phaser';
-import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
+import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier, RTP_CONFIG, GRID_CONFIG } from '../config/GameConfig';
 import { MAX_WIN_CONFIG } from '../config/MaxWinConfig';
 import { 
     gridToPixel, 
@@ -51,6 +51,18 @@ export class GameScene extends Phaser.Scene {
     private lordsThisRound: string[] = [];
     private lordsActivatedThisRound = new Set<string>();
     private waveNumber = 0;
+    
+    // RTP tracking system
+    private rtpTracker = {
+        totalBets: 0,
+        totalWins: 0,
+        consecutiveWins: 0,
+        consecutiveLosses: 0,
+        sessionRTP: 100
+    };
+    private resultDisplay: Phaser.GameObjects.Text | null = null;
+    private activeRows = 4;
+    private roundWinnings = 0;
     
     // UI elements
     private balanceText?: Phaser.GameObjects.Text;
@@ -116,7 +128,7 @@ export class GameScene extends Phaser.Scene {
         bg.setDisplaySize(width, height);
         bg.setDepth(0);
         
-        // Frame centered
+        // Frame centered (HIDDEN - only decorative columns visible)
         this.frameCenterX = width / 2;
         this.frameCenterY = height / 2;
         
@@ -124,6 +136,7 @@ export class GameScene extends Phaser.Scene {
         frame.setOrigin(0.5, 0.5);
         frame.setScale(1);
         frame.setDepth(1);
+        frame.setAlpha(0); // Hide the arch, keep only background columns
         
         // Calculate grid position within frame (using new cell-based config)
         const gridWidth = GAME_CONFIG.columns * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing);
@@ -1610,6 +1623,222 @@ export class GameScene extends Phaser.Scene {
         if (this.roundInfoText && roundInfo) {
             this.roundInfoText.setText(roundInfo);
         }
+    }
+    
+    // ========================================
+    // RTP SYSTEM METHODS
+    // ========================================
+    
+    /**
+     * Determine target outcome based on RTP tracking
+     */
+    private determineTargetOutcome(): 'loss' | 'small' | 'medium' | 'big' | 'mega' {
+        const currentRTP = this.rtpTracker.totalBets > 0 
+            ? (this.rtpTracker.totalWins / this.rtpTracker.totalBets) * 100 
+            : 100;
+        const targetRTP = RTP_CONFIG.targetRTP;
+        
+        // Force adjustments if RTP drifts too far
+        if (currentRTP > targetRTP + 5) {
+            return 'loss';  // Force loss to bring RTP down
+        }
+        
+        if (currentRTP < targetRTP - 5) {
+            // Force win to bring RTP up
+            return Math.random() < 0.5 ? 'medium' : 'big';
+        }
+        
+        // Control consecutive streaks
+        if (this.rtpTracker.consecutiveWins >= RTP_CONFIG.maxConsecutiveWins) {
+            this.rtpTracker.consecutiveWins = 0;
+            return 'loss';
+        }
+        
+        if (this.rtpTracker.consecutiveLosses >= RTP_CONFIG.minConsecutiveLosses) {
+            this.rtpTracker.consecutiveLosses = 0;
+            return Math.random() < 0.7 ? 'medium' : 'big';
+        }
+        
+        // Normal distribution
+        const roll = Math.random() * 100;
+        
+        if (roll < 45) return 'loss';
+        if (roll < 80) return 'small';
+        if (roll < 95) return 'medium';
+        if (roll < 99) return 'big';
+        return 'mega';
+    }
+    
+    /**
+     * Get weighted random gem type based on RTP_CONFIG
+     */
+    private getWeightedRandomGemType(): string {
+        const weights = RTP_CONFIG.gemWeights;
+        const total = Object.values(weights).reduce((a, b) => a + b, 0);
+        let random = Math.random() * total;
+        
+        for (const [type, weight] of Object.entries(weights)) {
+            random -= weight;
+            if (random <= 0) return type;
+        }
+        
+        return 'mascot_red';
+    }
+    
+    /**
+     * Get gem type avoiding matches (for loss scenarios)
+     */
+    private getGemTypeAvoidingMatch(col: number, row: number): string {
+        const neighbors = this.getNeighborTypes(col, row);
+        const avoidTypes = new Set(neighbors.map(t => this.getBaseType(t)));
+        
+        let attempts = 0;
+        let gemType: string;
+        
+        do {
+            gemType = this.getWeightedRandomGemType();
+            attempts++;
+        } while (avoidTypes.has(this.getBaseType(gemType)) && attempts < 10);
+        
+        return gemType;
+    }
+    
+    /**
+     * Get gem type favoring matches (for win scenarios)
+     */
+    private getGemTypeFavoringMatch(col: number, row: number): string {
+        const neighbors = this.getNeighborTypes(col, row);
+        
+        // 60% chance to match neighbor
+        if (neighbors.length > 0 && Math.random() < 0.6) {
+            return neighbors[0];
+        }
+        
+        // 20% chance for wild (if it exists in config)
+        if (Math.random() < 0.2 && RTP_CONFIG.gemWeights.wild) {
+            // Wild doesn't exist in gem factory yet, so use lord instead
+            const lords = ['lord_ignis', 'lord_ventus', 'lord_aqua', 'lord_terra'];
+            return lords[Math.floor(Math.random() * lords.length)];
+        }
+        
+        return this.getWeightedRandomGemType();
+    }
+    
+    /**
+     * Get neighbor gem types for matching logic
+     */
+    private getNeighborTypes(col: number, row: number): string[] {
+        const types: string[] = [];
+        
+        if (col > 0 && this.grid[row][col - 1]) {
+            const leftType = this.grid[row][col - 1]!.getData('gemType');
+            if (leftType) types.push(leftType);
+        }
+        
+        if (row > 0 && this.grid[row - 1][col]) {
+            const bottomType = this.grid[row - 1][col]!.getData('gemType');
+            if (bottomType) types.push(bottomType);
+        }
+        
+        return types;
+    }
+    
+    /**
+     * Get base type for comparison (removes mascot_/lord_ prefix)
+     */
+    private getBaseType(type: string): string {
+        if (type.includes('mascot_')) return type.split('_')[1];
+        if (type.includes('lord_')) return type.split('_')[1];
+        if (type.includes('wild')) return 'wild';
+        return type;
+    }
+    
+    /**
+     * Show persistent result with intermittent fade
+     */
+    private showPersistentResult(): void {
+        const isWin = this.roundWinnings > 0;
+        const betMultiple = isWin ? this.roundWinnings / this.currentBet : 0;
+        
+        let message: string;
+        let color: string;
+        let size: string;
+        
+        if (!isWin) {
+            message = 'NO WIN';
+            color = '#888888';
+            size = '48px';
+            this.rtpTracker.consecutiveLosses++;
+            this.rtpTracker.consecutiveWins = 0;
+        } else if (betMultiple >= 10) {
+            message = `MEGA WIN!\n£${this.roundWinnings.toFixed(2)}`;
+            color = '#FF00FF';
+            size = '96px';
+            this.rtpTracker.consecutiveWins++;
+            this.rtpTracker.consecutiveLosses = 0;
+        } else if (betMultiple >= 5) {
+            message = `BIG WIN!\n£${this.roundWinnings.toFixed(2)}`;
+            color = '#FF6B00';
+            size = '72px';
+            this.rtpTracker.consecutiveWins++;
+            this.rtpTracker.consecutiveLosses = 0;
+        } else {
+            message = `WIN £${this.roundWinnings.toFixed(2)}`;
+            color = '#FFD700';
+            size = '56px';
+            this.rtpTracker.consecutiveWins++;
+            this.rtpTracker.consecutiveLosses = 0;
+        }
+        
+        // Create persistent result with intermittent fade
+        this.resultDisplay = this.add.text(
+            this.cameras.main.centerX,
+            this.cameras.main.centerY - 50,
+            message,
+            {
+                fontSize: size,
+                color: color,
+                stroke: '#000000',
+                strokeThickness: 8,
+                fontStyle: 'bold',
+                align: 'center'
+            }
+        );
+        this.resultDisplay.setOrigin(0.5);
+        this.resultDisplay.setDepth(1000);
+        
+        // Pop-in animation
+        this.resultDisplay.setAlpha(0);
+        this.resultDisplay.setScale(0);
+        this.tweens.add({
+            targets: this.resultDisplay,
+            alpha: 1,
+            scale: 1,
+            duration: 500,
+            ease: 'Back.easeOut'
+        });
+        
+        // Intermittent fade (infinite until next spin)
+        this.tweens.add({
+            targets: this.resultDisplay,
+            alpha: { from: 1, to: 0.3 },
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+            delay: 500
+        });
+    }
+    
+    /**
+     * Update RTP statistics
+     */
+    private updateRTPStats(): void {
+        this.rtpTracker.sessionRTP = 
+            (this.rtpTracker.totalWins / this.rtpTracker.totalBets) * 100;
+        
+        console.log(`[RTP] Session: ${this.rtpTracker.sessionRTP.toFixed(2)}% | Target: ${RTP_CONFIG.targetRTP}%`);
+        console.log(`[Streaks] Wins: ${this.rtpTracker.consecutiveWins} | Losses: ${this.rtpTracker.consecutiveLosses}`);
     }
     
     update(): void {
