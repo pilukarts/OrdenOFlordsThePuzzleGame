@@ -371,21 +371,21 @@ export const RTP_CONFIG = {
     targetRTP: 96,          // 96% RTP (industry standard)
     volatility: 'medium',
     
-    // Gem probability weights (total = 100)
+    // Gem probability weights (normalized at runtime to create distribution)
     gemWeights: {
-        // Mascots (common) - 70%
+        // Mascots (common) - 70% of distribution
         mascot_red: 17.5,
         mascot_green: 17.5,
         mascot_blue: 17.5,
         mascot_yellow: 17.5,
         
-        // Lords (rare) - 28%
+        // Lords (rare) - 28% of distribution
         lord_ignis: 7,
         lord_ventus: 7,
         lord_aqua: 7,
         lord_terra: 7,
         
-        // Bombs (rare) - 2%
+        // Bombs (rare) - 2% of distribution
         bomb_small: 1,
         bomb_medium: 0.5,
         bomb_large: 0.3,
@@ -408,7 +408,13 @@ export const RTP_CONFIG = {
     
     // Cascade configuration
     maxCascades: 5,             // Maximum cascades per round
-    refillRowsPerCascade: 2     // Max rows added per cascade
+    refillRowsPerCascade: 2,    // Max rows added per cascade
+    
+    // Gem generation tuning
+    matchNeighborProbability: 0.6,      // 60% chance to match neighbor for win scenarios
+    mediumVsBigWinSplit: 0.5,           // Split between medium/big when forcing win (RTP low)
+    mediumVsBigAfterLosses: 0.7,        // Probability of medium vs big after consecutive losses
+    avoidMatchMaxAttempts: 10           // Max attempts to avoid matching when generating loss
 };
 
 /**

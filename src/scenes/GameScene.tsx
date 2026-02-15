@@ -1914,7 +1914,7 @@ export class GameScene extends Phaser.Scene {
         
         if (currentRTP < targetRTP - 5) {
             // Force win to bring RTP up
-            return Math.random() < 0.5 ? 'medium' : 'big';
+            return Math.random() < RTP_CONFIG.mediumVsBigWinSplit ? 'medium' : 'big';
         }
         
         // Control consecutive streaks
@@ -1925,7 +1925,7 @@ export class GameScene extends Phaser.Scene {
         
         if (this.rtpTracker.consecutiveLosses >= RTP_CONFIG.minConsecutiveLosses) {
             this.rtpTracker.consecutiveLosses = 0;
-            return Math.random() < 0.7 ? 'medium' : 'big';
+            return Math.random() < RTP_CONFIG.mediumVsBigAfterLosses ? 'medium' : 'big';
         }
         
         // Normal distribution
@@ -1967,7 +1967,7 @@ export class GameScene extends Phaser.Scene {
         do {
             gemType = this.getWeightedRandomGemType();
             attempts++;
-        } while (avoidTypes.has(this.getBaseType(gemType)) && attempts < 10);
+        } while (avoidTypes.has(this.getBaseType(gemType)) && attempts < RTP_CONFIG.avoidMatchMaxAttempts);
         
         return gemType;
     }
@@ -1978,8 +1978,8 @@ export class GameScene extends Phaser.Scene {
     private getGemTypeFavoringMatch(col: number, row: number): string {
         const neighbors = this.getNeighborTypes(col, row);
         
-        // 60% chance to match neighbor
-        if (neighbors.length > 0 && Math.random() < 0.6) {
+        // Use configured probability to match neighbor
+        if (neighbors.length > 0 && Math.random() < RTP_CONFIG.matchNeighborProbability) {
             return neighbors[0];
         }
         
@@ -2012,7 +2012,6 @@ export class GameScene extends Phaser.Scene {
     private getBaseType(type: string): string {
         if (type.includes('mascot_')) return type.split('_')[1];
         if (type.includes('lord_')) return type.split('_')[1];
-        if (type.includes('wild')) return 'wild';
         return type;
     }
     
