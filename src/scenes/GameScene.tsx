@@ -6,7 +6,7 @@
 import Phaser from 'phaser';
 import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
 import { MAX_WIN_CONFIG } from '../config/MaxWinConfig';
-import { hexToPixel, getHexNeighbors } from '../utils/HexGrid';
+import { gridToPixel, getRectNeighbors } from '../utils/RectGrid';
 import { createMascotGem, createLordGem, createBlackGem, createBombGem, getRandomGemType } from '../utils/GemFactory';
 import { findClusters, checkLordPower, findAllGemsOfColor, getBombExplosionGems } from '../utils/ClusterDetector';
 import type { Cluster } from '../utils/ClusterDetector';
@@ -50,8 +50,7 @@ export class GameScene extends Phaser.Scene {
     private frameCenterX = 0;
     private frameCenterY = 0;
     
-    // Pins for pinball physics
-    private pins: Phaser.GameObjects.Arc[] = [];
+
 
     constructor() {
         super({ key: 'GameScene' });
@@ -108,17 +107,14 @@ export class GameScene extends Phaser.Scene {
         frame.setDepth(1);
         
         // Calculate grid position within frame
-        const gridWidth = GAME_CONFIG.hexCols * GAME_CONFIG.hexWidth;
-        const gridHeight = GAME_CONFIG.hexRows * GAME_CONFIG.hexHeight * 0.75;
+        const gridWidth = GAME_CONFIG.columns * GAME_CONFIG.columnWidth;
+        const gridHeight = GAME_CONFIG.maxRows * (GAME_CONFIG.gemSize + GAME_CONFIG.spacing);
         
         this.gridStartX = this.frameCenterX - gridWidth / 2;
         this.gridStartY = this.frameCenterY - gridHeight / 2 + 50;
         
         // Initialize empty grid
         this.initializeGrid();
-        
-        // Create pins for pinball physics
-        this.createPins();
         
         // Create UI
         this.createUI();
@@ -136,35 +132,14 @@ export class GameScene extends Phaser.Scene {
     
     private initializeGrid(): void {
         this.grid = [];
-        for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
             this.grid[row] = [];
-            for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
                 this.grid[row][col] = null;
             }
         }
     }
-    
-    private createPins(): void {
-        const pinConfig = GAME_CONFIG.pins;
-        let yPos = this.gridStartY - 50;
-        
-        for (let row = 0; row < pinConfig.rows; row++) {
-            const pinsInRow = pinConfig.pattern[row];
-            const offset = row % 2 === 0 ? 0 : pinConfig.horizontalSpacing / 2;
-            
-            for (let i = 0; i < pinsInRow; i++) {
-                const xPos = this.gridStartX + offset + i * pinConfig.horizontalSpacing + 100;
-                
-                const pin = this.add.circle(xPos, yPos, pinConfig.radius, 0x8B4513);
-                if (this.physics && this.physics.add) {
-                    this.physics.add.existing(pin, true);
-                }
-                this.pins.push(pin);
-            }
-            
-            yPos += pinConfig.verticalSpacing;
-        }
-    }
+
 
     // ========================================
     // UI CREATION METHODS
@@ -411,7 +386,7 @@ export class GameScene extends Phaser.Scene {
         const lordType = gem.getData('lordType');
         if (!lordType) return;
         
-        const isBase = (row === GAME_CONFIG.hexRows - 1);
+        const isBase = (row === GAME_CONFIG.maxRows - 1);
         
         if (isBase) {
             // Base landing: Check for merge opportunity
@@ -428,7 +403,7 @@ export class GameScene extends Phaser.Scene {
         col: number, 
         lordType: string
     ): void {
-        const neighbors = getHexNeighbors(col, row);
+        const neighbors = getRectNeighbors(col, row);
         const lordConfig = LORD_CONFIG[lordType as keyof typeof LORD_CONFIG];
         const matchColor = lordConfig.matchColor;
         
@@ -749,7 +724,7 @@ export class GameScene extends Phaser.Scene {
     private dropSingleGem(): void {
         const gemType = getRandomGemType(this.lordsThisRound);
         
-        const startX = this.gridStartX + Math.random() * (GAME_CONFIG.hexCols * GAME_CONFIG.hexWidth);
+        const startX = this.gridStartX + Math.random() * (GAME_CONFIG.columns * GAME_CONFIG.columnWidth);
         const startY = this.gridStartY - 100;
         
         let gem: Phaser.GameObjects.Container;
@@ -777,16 +752,10 @@ export class GameScene extends Phaser.Scene {
         
         this.physics.add.existing(gem);
         const body = gem.body as Phaser.Physics.Arcade.Body;
-        body.setVelocity(
-            Phaser.Math.Between(GAME_CONFIG.initialVelocityX.min, GAME_CONFIG.initialVelocityX.max),
-            GAME_CONFIG.initialVelocityY
-        );
+        body.setVelocity(0, 0);
         body.setBounce(GAME_CONFIG.bounce);
         body.setDrag(GAME_CONFIG.drag);
         body.setCollideWorldBounds(true);
-        
-        // Collide with pins
-        this.physics.add.collider(gem, this.pins);
         
         this.fallingGems.push(gem);
     }
@@ -798,9 +767,9 @@ export class GameScene extends Phaser.Scene {
             const hexPos = this.findNearestEmptyHex(pixelPos.x, pixelPos.y);
             
             if (hexPos !== null) {
-                const targetPixel = hexToPixel(hexPos.col, hexPos.row);
-                const targetX = this.gridStartX + targetPixel.x;
-                const targetY = this.gridStartY + targetPixel.y;
+                const targetPixel = gridToPixel(hexPos.col, hexPos.row, this.gridStartX, this.gridStartY);
+                const targetX = targetPixel.x;
+                const targetY = targetPixel.y;
                 
                 // Snap to position
                 this.tweens.add({
@@ -840,10 +809,10 @@ export class GameScene extends Phaser.Scene {
         let nearestDist = Infinity;
         let nearest: { col: number; row: number } | null = null;
         
-        for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
-            for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
                 if (this.grid[row][col] === null) {
-                    const hexPixel = hexToPixel(col, row);
+                    const hexPixel = gridToPixel(col, row, this.gridStartX, this.gridStartY);
                     const dist = Phaser.Math.Distance.Between(x, y, hexPixel.x, hexPixel.y);
                     
                     if (dist < nearestDist) {
@@ -867,8 +836,8 @@ export class GameScene extends Phaser.Scene {
         // Check for Lord powers first
         let lordPowerTriggered = false;
         
-        for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
-            for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
                 const gem = this.grid[row][col];
                 if (!gem) continue;
                 
@@ -892,8 +861,8 @@ export class GameScene extends Phaser.Scene {
         // Check for bomb explosions
         let bombTriggered = false;
         
-        for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
-            for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
                 const gem = this.grid[row][col];
                 if (!gem) continue;
                 
@@ -1043,7 +1012,7 @@ export class GameScene extends Phaser.Scene {
     
     private applyGravityToAllColumns(): void {
         // Process each column independently
-        for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
+        for (let col = 0; col < GAME_CONFIG.columns; col++) {
             this.applyGravityToColumn(col);
         }
     }
@@ -1053,7 +1022,7 @@ export class GameScene extends Phaser.Scene {
         const gems: Phaser.GameObjects.Container[] = [];
         
         // Collect all non-null gems in this column from bottom to top
-        for (let row = GAME_CONFIG.hexRows - 1; row >= 0; row--) {
+        for (let row = GAME_CONFIG.maxRows - 1; row >= 0; row--) {
             const gem = this.grid[row][col];
             if (gem !== null) {
                 gems.push(gem);
@@ -1061,13 +1030,13 @@ export class GameScene extends Phaser.Scene {
         }
         
         // Clear the entire column
-        for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
             this.grid[row][col] = null;
         }
         
         // Place gems back starting from the bottom
         for (let i = 0; i < gems.length; i++) {
-            const targetRow = GAME_CONFIG.hexRows - 1 - i;
+            const targetRow = GAME_CONFIG.maxRows - 1 - i;
             const gem = gems[i];
             
             this.grid[targetRow][col] = gem;
@@ -1075,8 +1044,8 @@ export class GameScene extends Phaser.Scene {
             gem.setData('col', col);
             
             // Animate gem falling to new position
-            const targetPixel = hexToPixel(col, targetRow);
-            const targetY = this.gridStartY + targetPixel.y;
+            const targetPixel = gridToPixel(col, targetRow, this.gridStartX, this.gridStartY);
+            const targetY = targetPixel.y;
             
             this.tweens.add({
                 targets: gem,
@@ -1091,8 +1060,8 @@ export class GameScene extends Phaser.Scene {
         const refillPromises: Promise<void>[] = [];
         
         // Find all empty spaces and generate new gems
-        for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
-            for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
+        for (let col = 0; col < GAME_CONFIG.columns; col++) {
+            for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
                 if (this.grid[row][col] === null) {
                     refillPromises.push(this.createAndDropNewGem(col, row));
                 }
@@ -1123,9 +1092,9 @@ export class GameScene extends Phaser.Scene {
             const gemType = getRandomGemType(this.lordsThisRound);
             
             // Calculate target position
-            const targetPixel = hexToPixel(col, row);
-            const targetX = this.gridStartX + targetPixel.x;
-            const targetY = this.gridStartY + targetPixel.y;
+            const targetPixel = gridToPixel(col, row, this.gridStartX, this.gridStartY);
+            const targetX = targetPixel.x;
+            const targetY = targetPixel.y;
             
             // Start position: directly above the target column
             const startY = this.gridStartY - 300;
@@ -1283,8 +1252,8 @@ export class GameScene extends Phaser.Scene {
         // Check for black gems penalty
         let blackGemPenalty = 0;
         
-        for (let row = 0; row < GAME_CONFIG.hexRows; row++) {
-            for (let col = 0; col < GAME_CONFIG.hexCols; col++) {
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
                 const gem = this.grid[row][col];
                 if (gem && gem.getData('gemType') === 'black_gem') {
                     blackGemPenalty += Math.abs(GAME_CONFIG.gemValues.black_gem);
