@@ -5,24 +5,22 @@
 
 export const GAME_CONFIG = {
     // ========================================
-    // HEXAGONAL GRID CONFIGURATION
+    // VERTICAL COLUMN GRID CONFIGURATION
     // ========================================
-    hexCols: 9,
-    hexRows: 12,
-    hexWidth: 40,
-    hexHeight: 35,
-    gemRadius: 20,
-    lordGemRadius: 24,
+    columns: 7,              // 7 vertical columns
+    maxRows: 25,            // Up to 25 rows high
+    columnWidth: 80,        // Width of each column
+    gemSize: 60,            // Size of gems
+    spacing: 10,            // Space between gems
+    gemRadius: 30,          // Radius for rendering
+    lordGemRadius: 32,      // Lord gem radius
     
     // ========================================
     // PHYSICS CONFIGURATION
     // ========================================
-    gravity: 300,
-    bounce: 0.7,
-    bounceCascade: 0.2, // Lower bounce for cascades
-    drag: 10,
-    initialVelocityX: { min: -80, max: 80 },
-    initialVelocityY: 50,
+    gravity: 800,           // Vertical gravity only
+    bounce: 0,              // No bounce
+    drag: 0,                // No friction
     settleVelocityThreshold: 30,
     
     // ========================================
@@ -109,10 +107,20 @@ export const GAME_CONFIG = {
     superBonusReward: 10000,
     
     roundConfiguration: {
-        gemsPerRound: { min: 8, max: 12 },
-        gemDropDelay: 800,
+        gemsPerRound: { min: 15, max: 25 },  // 15-25 gems per spin
+        gemDropDelay: 100,                    // 100ms between gems
         settlementDelay: 2000
     },
+    
+    // ========================================
+    // WAVE SYSTEM
+    // ========================================
+    waveBonus: 50,          // £50 per wave completed
+    
+    // ========================================
+    // WILD MULTIPLIER
+    // ========================================
+    wildMultiplier: 10,     // x10 when W touches base/pillar
     
     // ========================================
     // COLORS (HEX)
@@ -158,11 +166,11 @@ export const GAME_CONFIG = {
     // ========================================
     animations: {
         gemFloat: {
-            yOffset: 3,  // Reduce for more subtle floating
+            yOffset: 3,  // Subtle floating
             duration: 2000
         },
         gemRotate: {
-            angle: 3,
+            angle: 5,
             duration: 3000
         },
         lordFloat: {
@@ -170,7 +178,7 @@ export const GAME_CONFIG = {
             duration: 2500
         },
         lordRotate: {
-            angle: 3,  // Reduce rotation from 5 to 3 degrees
+            angle: 5,
             duration: 3000
         },
         sparkle: {
@@ -178,6 +186,47 @@ export const GAME_CONFIG = {
         },
         glowPulse: {
             duration: 1500
+        },
+        highlight: {
+            alphaMin: 0.4,
+            alphaMax: 0.8,
+            duration: 1500
+        }
+    },
+    
+    // ========================================
+    // VICTORY ANIMATION CONFIGURATION
+    // ========================================
+    victoryAnimation: {
+        normalVictory: {
+            duration: 3000,
+            blinks: 4,
+            blinkOnTime: 300,
+            blinkOffTime: 200,
+            scale: 1.15,
+            glowColor: 0xFFFFFF,
+            shake: 0,
+            confetti: false
+        },
+        bigVictory: {
+            duration: 4000,
+            blinks: 6,
+            blinkOnTime: 300,
+            blinkOffTime: 200,
+            scale: 1.2,
+            glowColor: 0xFFD700,
+            shake: 0.008,
+            confetti: false
+        },
+        megaVictory: {
+            duration: 5000,
+            blinks: 8,
+            blinkOnTime: 300,
+            blinkOffTime: 200,
+            scale: 1.3,
+            glowColor: 0xFF00FF,
+            shake: 0.015,
+            confetti: true
         }
     },
     
@@ -192,17 +241,6 @@ export const GAME_CONFIG = {
         color: -2 // All of one color
     },
     
-    // ========================================
-    // PIN CONFIGURATION (for pinball physics)
-    // ========================================
-    pins: {
-        rows: 1,  // Only 1 row
-        pattern: [3],  // Only 3 pins
-        horizontalSpacing: 120,  // More separated
-        verticalSpacing: 60,
-        radius: 6,
-        bounciness: 0.8
-    }
 };
 
 /**

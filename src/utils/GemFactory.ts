@@ -4,7 +4,51 @@
  */
 
 import Phaser from 'phaser';
-import { GAME_CONFIG, MASCOT_CONFIG, LORD_CONFIG } from '../config/GameConfig';
+import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG } from '../config/GameConfig';
+
+/**
+ * Color configuration for 3D gems
+ */
+const GEM_COLORS_3D = {
+    red: {
+        base: 0xFF4444,
+        light: 0xFF8888,
+        dark: 0xCC0000
+    },
+    green: {
+        base: 0x44FF44,
+        light: 0x88FF88,
+        dark: 0x00CC00
+    },
+    blue: {
+        base: 0x4444FF,
+        light: 0x8888FF,
+        dark: 0x0000CC
+    },
+    yellow: {
+        base: 0xFFFF44,
+        light: 0xFFFF88,
+        dark: 0xCCCC00
+    }
+};
+
+/**
+ * Bomb configuration
+ */
+const BOMB_CONFIG = {
+    small: { size: 0.85, fuseCount: 1, label: '3×3', color: 0x444444 },
+    medium: { size: 1.0, fuseCount: 2, label: '5×5', color: 0x333333 },
+    large: { size: 1.15, fuseCount: 3, label: '7×7', color: 0x222222 }
+};
+
+/**
+ * Common text style for bold labels
+ */
+const BOLD_TEXT_STYLE = {
+    fontStyle: 'bold',
+    stroke: '#000000',
+    strokeThickness: 2
+} as const;
 
 export type GemType = 'mascot_red' | 'mascot_green' | 'mascot_blue' | 'mascot_yellow' |
                       'lord_ignis' | 'lord_ventus' | 'lord_aqua' | 'lord_terra' |
@@ -19,7 +63,7 @@ export interface GemData {
 }
 
 /**
- * Create a mascot gem with glass marble effects
+ * Create a mascot gem with realistic 3D effects
  */
 export function createMascotGem(
     scene: Phaser.Scene,
@@ -30,52 +74,53 @@ export function createMascotGem(
 ): Phaser.GameObjects.Container {
     const container = scene.add.container(x, y);
     const config = MASCOT_CONFIG[color];
+    const colors3D = GEM_COLORS_3D[color];
     const radius = GAME_CONFIG.gemRadius;
     
-    // Shadow
-    const shadow = scene.add.ellipse(2, 3, radius * 2, radius * 1.5, 0x000000, 0.4);
+    // Layer 1: Projected shadow (below)
+    const shadow = scene.add.ellipse(0, 5, radius * 1.7, radius * 0.5, 0x000000, 0.3);
     
-    // Main gem circle (glass effect)
-    const gemCircle = scene.add.graphics();
-    gemCircle.fillGradientStyle(
-        config.color, config.color, 
-        Phaser.Display.Color.IntegerToColor(config.color).darken(30).color,
-        Phaser.Display.Color.IntegerToColor(config.color).darken(30).color,
+    // Layer 2: Base circle
+    const base = scene.add.circle(0, 0, radius, colors3D.base);
+    
+    // Layer 3: Radial gradient (light top, dark bottom)
+    const gradient = scene.add.graphics();
+    gradient.fillGradientStyle(
+        colors3D.light, colors3D.light,
+        colors3D.dark, colors3D.dark,
         1
     );
-    gemCircle.fillCircle(0, 0, radius);
+    gradient.fillCircle(0, 0, radius);
     
-    // Rim/border
-    gemCircle.lineStyle(2, 0xFFFFFF, 0.3);
-    gemCircle.strokeCircle(0, 0, radius);
+    // Layer 4: Inner shadow (bottom arc)
+    const innerShadow = scene.add.arc(0, radius * 0.3, radius, 180, 360, false, 0x000000, 0.3);
     
-    // Inner glow
-    const glow = scene.add.graphics();
-    glow.fillStyle(0xFFFFFF, 0.2);
-    glow.fillCircle(0, 0, radius * 0.85);
-    
-    // Highlight (top-left)
-    const highlight = scene.add.graphics();
-    highlight.fillStyle(0xFFFFFF, 0.6);
-    highlight.fillCircle(-radius * 0.3, -radius * 0.3, radius * 0.3);
+    // Layer 5: Specular highlight (top-left)
+    const highlight = scene.add.ellipse(-radius * 0.27, -radius * 0.27, radius * 0.5, radius * 0.33, 0xFFFFFF, 0.6);
     highlight.setBlendMode(Phaser.BlendModes.ADD);
     
-    // Mascot image
+    // Layer 6: Glass border
+    const border = scene.add.circle(0, 0, radius);
+    border.setStrokeStyle(2, 0xFFFFFF, 0.4);
+    border.setFillStyle(0x000000, 0); // Transparent fill
+    
+    // Layer 7: Mascot image
     const mascot = scene.add.image(0, 0, config.assetKey);
     mascot.setDisplaySize(radius * 1.4, radius * 1.4);
     
-    // Sparkle
+    // Sparkle for animation
     const sparkle = scene.add.graphics();
     sparkle.lineStyle(2, 0xFFFFFF, 0.8);
     sparkle.lineBetween(-radius * 0.5, 0, radius * 0.5, 0);
     sparkle.lineBetween(0, -radius * 0.5, 0, radius * 0.5);
     sparkle.setAlpha(0);
     
-    container.add([shadow, gemCircle, glow, highlight, mascot, sparkle]);
+    container.add([shadow, base, gradient, innerShadow, highlight, border, mascot, sparkle]);
     container.setSize(radius * 2, radius * 2);
     container.setData('gemType', `mascot_${color}`);
     container.setData('color', color);
     container.setData('sparkle', sparkle);
+    container.setData('highlight', highlight);
     
     // Only start animations if NOT skipped
     if (!skipAnimations) {
@@ -84,6 +129,26 @@ export function createMascotGem(
             targets: container,
             y: y + GAME_CONFIG.animations.gemFloat.yOffset,
             duration: GAME_CONFIG.animations.gemFloat.duration,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        // Subtle rotation
+        scene.tweens.add({
+            targets: container,
+            angle: GAME_CONFIG.animations.gemRotate.angle,
+            duration: GAME_CONFIG.animations.gemRotate.duration,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        // Pulsing highlight
+        scene.tweens.add({
+            targets: highlight,
+            alpha: { from: 0.4, to: 0.8 },
+            duration: GAME_CONFIG.animations.highlight.duration,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'
@@ -262,7 +327,7 @@ export function createBlackGem(
 }
 
 /**
- * Create a bomb gem
+ * Create a bomb gem with animated fuse and sparks
  */
 export function createBombGem(
     scene: Phaser.Scene,
@@ -274,48 +339,257 @@ export function createBombGem(
     const container = scene.add.container(x, y);
     const radius = GAME_CONFIG.gemRadius;
     
-    const bombConfig = {
-        small: { color: 0xFF6B6B, emoji: '💣', size: 0.8 },
-        medium: { color: 0xFF4444, emoji: '💥', size: 1.0 },
-        large: { color: 0xFF0000, emoji: '🧨', size: 1.2 },
-        line: { color: 0xFFAA00, emoji: '⚡', size: 1.1 },
-        color: { color: 0xFF00FF, emoji: '🌈', size: 1.3 }
-    };
+    if (bombType === 'line') {
+        // Lightning bolt style for line bomb
+        const shadow = scene.add.ellipse(0, 5, radius * 1.8, radius * 0.5, 0x000000, 0.3);
+        
+        // Electric yellow body
+        const body = scene.add.graphics();
+        body.fillGradientStyle(0xFFFF00, 0xFFFF00, 0xFFAA00, 0xFFAA00, 1);
+        body.fillEllipse(0, 0, radius * 1.5, radius * 1.2);
+        
+        // Lightning bolt symbol
+        const bolt = scene.add.text(0, 0, '⚡', {
+            fontSize: `${radius * 1.8}px`
+        }).setOrigin(0.5);
+        
+        // Electric sparks
+        const sparks = scene.add.particles(0, 0, 'particle', {
+            speed: { min: 20, max: 40 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.4, end: 0 },
+            alpha: { start: 1, end: 0 },
+            lifespan: 300,
+            frequency: 100,
+            quantity: 1,
+            tint: 0xFFFF00
+        });
+        
+        container.add([shadow, body, bolt, sparks]);
+        
+        if (!skipAnimations) {
+            // Electric pulse
+            scene.tweens.add({
+                targets: body,
+                alpha: { from: 0.8, to: 1 },
+                duration: 200,
+                yoyo: true,
+                repeat: -1
+            });
+        }
+    } else if (bombType === 'color') {
+        // Rainbow sphere for color bomb
+        const shadow = scene.add.ellipse(0, 5, radius * 1.9, radius * 0.5, 0x000000, 0.3);
+        
+        // Multicolor sphere
+        const sphere = scene.add.graphics();
+        sphere.fillGradientStyle(0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 1);
+        sphere.fillCircle(0, 0, radius * 1.1);
+        
+        // Rainbow symbol
+        const rainbow = scene.add.text(0, 0, '🌈', {
+            fontSize: `${radius * 1.6}px`
+        }).setOrigin(0.5);
+        
+        // Multi-color particles
+        const particles = scene.add.particles(0, 0, 'particle', {
+            speed: { min: 15, max: 35 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.5, end: 0 },
+            alpha: { start: 1, end: 0 },
+            lifespan: 800,
+            frequency: 150,
+            quantity: 2,
+            tint: [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF]
+        });
+        
+        container.add([shadow, sphere, rainbow, particles]);
+        
+        if (!skipAnimations) {
+            // Rotate colors
+            scene.tweens.add({
+                targets: sphere,
+                angle: 360,
+                duration: 3000,
+                repeat: -1,
+                ease: 'Linear'
+            });
+        }
+    } else {
+        // Standard bombs (small, medium, large)
+        const config = BOMB_CONFIG[bombType];
+        
+        // Shadow
+        const shadow = scene.add.ellipse(0, 5, radius * 1.7 * config.size, radius * 0.5, 0x000000, 0.4);
+        
+        // Metallic sphere
+        const body = scene.add.graphics();
+        body.fillGradientStyle(0x666666, 0x666666, config.color, config.color, 1);
+        body.fillCircle(0, 0, radius * config.size);
+        
+        // Metallic highlight
+        const highlight = scene.add.ellipse(-radius * 0.3 * config.size, -radius * 0.3 * config.size, 
+            radius * 0.4 * config.size, radius * 0.3 * config.size, 0xAAAAAA, 0.7);
+        highlight.setBlendMode(Phaser.BlendModes.ADD);
+        
+        // Label
+        const label = scene.add.text(0, 0, config.label, {
+            fontSize: `${radius * 0.6 * config.size}px`,
+            color: '#FFFFFF',
+            ...BOLD_TEXT_STYLE
+        }).setOrigin(0.5);
+        
+        container.add([shadow, body, highlight, label]);
+        
+        // Add fuses
+        for (let i = 0; i < config.fuseCount; i++) {
+            const angle = (i / config.fuseCount) * Math.PI * 2 - Math.PI / 2;
+            const fuseX = Math.cos(angle) * radius * 0.3 * config.size;
+            const fuseY = -radius * config.size - 5;
+            
+            // Fuse line
+            const fuse = scene.add.line(fuseX, fuseY, 0, 0, 0, -10, 0xFF0000, 1);
+            fuse.setLineWidth(2);
+            container.add(fuse);
+            
+            // Fuse sparks
+            const fuseSparks = scene.add.particles(fuseX, fuseY - 10, 'particle', {
+                speed: { min: 10, max: 30 },
+                angle: { min: 0, max: 360 },
+                scale: { start: 0.3, end: 0 },
+                alpha: { start: 1, end: 0 },
+                lifespan: 300,
+                frequency: 100,
+                quantity: 1,
+                tint: [0xFF6600, 0xFF0000, 0xFFFF00]
+            });
+            container.add(fuseSparks);
+            
+            if (!skipAnimations) {
+                // Animate fuse flickering
+                scene.tweens.add({
+                    targets: fuse,
+                    alpha: { from: 1, to: 0.3 },
+                    scaleY: { from: 1, to: 0.7 },
+                    duration: 400,
+                    yoyo: true,
+                    repeat: -1,
+                    delay: i * 100
+                });
+            }
+        }
+        
+        if (!skipAnimations) {
+            // Slight rotation
+            scene.tweens.add({
+                targets: container,
+                angle: { from: -2, to: 2 },
+                duration: 1000,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        }
+    }
     
-    const config = bombConfig[bombType];
-    
-    // Shadow
-    const shadow = scene.add.ellipse(2, 3, radius * 2, radius * 1.5, 0x000000, 0.5);
-    
-    // Main bomb circle
-    const gemCircle = scene.add.graphics();
-    gemCircle.fillStyle(config.color, 1);
-    gemCircle.fillCircle(0, 0, radius * config.size);
-    
-    // Danger stripes
-    gemCircle.lineStyle(2, 0xFFFF00, 0.8);
-    gemCircle.strokeCircle(0, 0, radius * config.size);
-    
-    // Emoji
-    const emoji = scene.add.text(0, 0, config.emoji, {
-        fontSize: `${radius * config.size * 1.2}px`
-    }).setOrigin(0.5);
-    
-    container.add([shadow, gemCircle, emoji]);
     container.setSize(radius * 2, radius * 2);
     container.setData('gemType', `bomb_${bombType}`);
     container.setData('bombType', bombType);
     
-    // Only start animations if NOT skipped
+    return container;
+}
+
+/**
+ * Create a Wild (W) gem with golden effects
+ */
+export function createWildGem(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    skipAnimations: boolean = false
+): Phaser.GameObjects.Container {
+    const container = scene.add.container(x, y);
+    const radius = GAME_CONFIG.gemRadius;
+    
+    // Shadow
+    const shadow = scene.add.ellipse(0, 5, radius * 1.8, radius * 0.5, 0x000000, 0.4);
+    
+    // Golden gradient sphere
+    const sphere = scene.add.graphics();
+    sphere.fillGradientStyle(
+        0xFFD700, 0xFFD700,  // Gold top
+        0xFFA500, 0xFFA500,  // Orange bottom
+        1
+    );
+    sphere.fillCircle(0, 0, radius * 1.1);
+    
+    // Golden rim
+    sphere.lineStyle(3, 0xFFD700, 0.9);
+    sphere.strokeCircle(0, 0, radius * 1.1);
+    
+    // Highlight
+    const highlight = scene.add.ellipse(-radius * 0.3, -radius * 0.3, 
+        radius * 0.5, radius * 0.35, 0xFFFFFF, 0.7);
+    highlight.setBlendMode(Phaser.BlendModes.ADD);
+    
+    // Large "W" letter
+    const wText = scene.add.text(0, 0, 'W', {
+        fontSize: `${radius * 1.5}px`,
+        color: '#FFFFFF',
+        ...BOLD_TEXT_STYLE,
+        strokeThickness: 4
+    }).setOrigin(0.5);
+    
+    // Golden particles rotating around
+    const particles = scene.add.particles(0, 0, 'particle', {
+        speed: { min: 30, max: 50 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.5, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 1000,
+        frequency: 150,
+        quantity: 2,
+        tint: 0xFFD700
+    });
+    
+    // Pulsing glow
+    const glow = scene.add.circle(0, 0, radius * 1.3, 0xFFD700, 0.3);
+    glow.setBlendMode(Phaser.BlendModes.ADD);
+    
+    container.add([shadow, glow, sphere, highlight, wText, particles]);
+    container.setSize(radius * 2, radius * 2);
+    container.setData('gemType', 'wild');
+    container.setData('color', 'wild');
+    
     if (!skipAnimations) {
-        // Ticking animation
+        // Float
         scene.tweens.add({
             targets: container,
-            scale: { from: 1, to: 1.1 },
+            y: y + 4,
+            duration: 2000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut'
+        });
+        
+        // Pulsing glow
+        scene.tweens.add({
+            targets: glow,
+            alpha: { from: 0.3, to: 0.6 },
+            scale: { from: 1, to: 1.2 },
             duration: 500,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'
+        });
+        
+        // Rotate particles emitter
+        scene.tweens.add({
+            targets: particles,
+            angle: 360,
+            duration: 4000,
+            repeat: -1,
+            ease: 'Linear'
         });
     }
     

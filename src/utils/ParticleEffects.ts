@@ -276,3 +276,138 @@ export function createWinText(
     
     return text;
 }
+
+/**
+ * Create bomb explosion effect with shockwave
+ */
+export function createBombExplosion(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    bombType: 'small' | 'medium' | 'large' | 'line' | 'color',
+    onComplete?: () => void
+): void {
+    const sizeMap = {
+        small: 1,
+        medium: 1.5,
+        large: 2,
+        line: 1.8,
+        color: 2.5
+    };
+    
+    const shakeMap = {
+        small: 0.005,
+        medium: 0.01,
+        large: 0.015,
+        line: 0.012,
+        color: 0.02
+    };
+    
+    const size = sizeMap[bombType];
+    const shakeIntensity = shakeMap[bombType];
+    
+    // Screen shake
+    scene.cameras.main.shake(300, shakeIntensity);
+    
+    // Explosion particles
+    const colors = bombType === 'color' 
+        ? [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF]
+        : [0xFF6600, 0xFF0000, 0xFFFF00];
+    
+    const explosion = scene.add.particles(x, y, 'particle', {
+        speed: { min: 100 * size, max: 300 * size },
+        angle: { min: 0, max: 360 },
+        scale: { start: 1 * size, end: 0 },
+        alpha: { start: 1, end: 0 },
+        tint: colors,
+        lifespan: 600,
+        quantity: 50,
+        blendMode: Phaser.BlendModes.ADD
+    });
+    
+    // Shockwave
+    const wave = scene.add.circle(x, y, 10, 0xFFFFFF, 0.5);
+    wave.setBlendMode(Phaser.BlendModes.ADD);
+    
+    scene.tweens.add({
+        targets: wave,
+        radius: 150 * size,
+        alpha: 0,
+        duration: 400,
+        ease: 'Cubic.easeOut',
+        onComplete: () => wave.destroy()
+    });
+    
+    // Flash
+    const flash = scene.add.circle(x, y, 50 * size, 0xFFFFFF, 0.9);
+    flash.setBlendMode(Phaser.BlendModes.ADD);
+    
+    scene.tweens.add({
+        targets: flash,
+        scale: 2,
+        alpha: 0,
+        duration: 300,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+            flash.destroy();
+            if (onComplete) onComplete();
+        }
+    });
+    
+    // Cleanup particles after animation
+    scene.time.delayedCall(700, () => explosion.destroy());
+}
+
+/**
+ * Create confetti particle effect using optimized particle emitter
+ */
+export function createConfetti(scene: Phaser.Scene): void {
+    const { width } = scene.cameras.main;
+    const colors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF];
+    
+    // Create particle emitter for confetti
+    const emitter = scene.add.particles(width / 2, -20, 'particle', {
+        x: { min: 0, max: width },
+        y: -20,
+        speedY: { min: 200, max: 400 },
+        speedX: { min: -50, max: 50 },
+        angle: { min: 0, max: 360 },
+        scale: { min: 0.5, max: 1.5 },
+        alpha: { start: 1, end: 0.5 },
+        lifespan: { min: 2000, max: 3000 },
+        quantity: 2,
+        frequency: 40,
+        tint: colors,
+        gravityY: 100
+    });
+    
+    // Stop emitting after 1 second and cleanup
+    scene.time.delayedCall(1000, () => {
+        emitter.stop();
+        scene.time.delayedCall(3000, () => emitter.destroy());
+    });
+}
+
+/**
+ * Create victory glow effect on gem
+ */
+export function createVictoryGlow(
+    scene: Phaser.Scene,
+    gem: Phaser.GameObjects.Container,
+    glowColor: number,
+    duration: number
+): Phaser.GameObjects.Arc {
+    const glow = scene.add.circle(gem.x, gem.y, 40, glowColor, 0.6);
+    glow.setBlendMode(Phaser.BlendModes.ADD);
+    glow.setDepth(gem.depth - 1);
+    
+    scene.tweens.add({
+        targets: glow,
+        scale: 1.5,
+        alpha: 0,
+        duration: duration,
+        onComplete: () => glow.destroy()
+    });
+    
+    return glow;
+}

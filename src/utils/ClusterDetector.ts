@@ -1,10 +1,10 @@
 /**
  * ClusterDetector.ts
- * Flood-fill algorithm to detect clusters of matching gems
+ * Flood-fill algorithm to detect clusters of matching gems on rectangular grid
  */
 
-import type { HexCoord } from './HexGrid';
-import { getHexNeighbors, isValidHex } from './HexGrid';
+import type { GridCoord } from './RectGrid';
+import { getRectNeighbors, isValidGrid } from './RectGrid';
 import Phaser from 'phaser';
 
 export interface Cluster {
@@ -14,7 +14,7 @@ export interface Cluster {
 }
 
 /**
- * Find all clusters of 3 or more matching gems
+ * Find all clusters of 3 or more matching gems on rectangular grid
  */
 export function findClusters(
     grid: (Phaser.GameObjects.Container | null)[][]
@@ -49,7 +49,8 @@ export function findClusters(
 }
 
 /**
- * Flood fill algorithm to find connected gems of same color
+ * Flood fill algorithm to find connected gems of same color on rectangular grid
+ * Supports Wild (W) gems that match any color
  */
 function floodFill(
     grid: (Phaser.GameObjects.Container | null)[][],
@@ -59,30 +60,33 @@ function floodFill(
     visited: Set<string>
 ): Array<{ col: number; row: number; container: Phaser.GameObjects.Container }> {
     const cluster: Array<{ col: number; row: number; container: Phaser.GameObjects.Container }> = [];
-    const queue: HexCoord[] = [{ col: startCol, row: startRow }];
+    const queue: GridCoord[] = [{ col: startCol, row: startRow }];
     
     while (queue.length > 0) {
-        const current = queue.shift()!; // queue.length > 0 guarantees this is defined
+        const current = queue.shift()!;
         
         const key = `${current.col},${current.row}`;
         
         if (visited.has(key)) continue;
-        if (!isValidHex(current.col, current.row)) continue;
+        if (!isValidGrid(current.col, current.row)) continue;
         
         const gem = grid[current.row][current.col];
         if (!gem) continue;
         
         const gemColor = gem.getData('color');
-        if (gemColor !== targetColor) continue;
         
-        visited.add(key);
-        cluster.push({ col: current.col, row: current.row, container: gem });
-        
-        const neighbors = getHexNeighbors(current.col, current.row);
-        for (const neighbor of neighbors) {
-            const neighborKey = `${neighbor.col},${neighbor.row}`;
-            if (!visited.has(neighborKey)) {
-                queue.push(neighbor);
+        // Wild gems match anything, or check for color match
+        if (gemColor === 'wild' || targetColor === 'wild' || gemColor === targetColor) {
+            visited.add(key);
+            cluster.push({ col: current.col, row: current.row, container: gem });
+            
+            // Check 4 neighbors (up, down, left, right)
+            const neighbors = getRectNeighbors(current.col, current.row);
+            for (const neighbor of neighbors) {
+                const neighborKey = `${neighbor.col},${neighbor.row}`;
+                if (!visited.has(neighborKey)) {
+                    queue.push(neighbor);
+                }
             }
         }
     }
@@ -105,7 +109,7 @@ export function checkLordPower(
     if (!lordType) return { triggered: false, matchingColor: null };
     
     const matchColor = lordGem.getData('color');
-    const neighbors = getHexNeighbors(lordCol, lordRow);
+    const neighbors = getRectNeighbors(lordCol, lordRow);
     
     for (const neighbor of neighbors) {
         const neighborGem = grid[neighbor.row][neighbor.col];
