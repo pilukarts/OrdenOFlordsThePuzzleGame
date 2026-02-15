@@ -6,7 +6,7 @@
 import Phaser from 'phaser';
 import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
 import { MAX_WIN_CONFIG } from '../config/MaxWinConfig';
-import { gridToPixel, getRectNeighbors } from '../utils/RectGrid';
+import { gridToPixel, getRectNeighbors, getAvailableRowInColumn } from '../utils/RectGrid';
 import { createMascotGem, createLordGem, createBlackGem, createBombGem, getRandomGemType } from '../utils/GemFactory';
 import { findClusters, checkLordPower, findAllGemsOfColor, getBombExplosionGems } from '../utils/ClusterDetector';
 import type { Cluster } from '../utils/ClusterDetector';
@@ -889,7 +889,10 @@ export class GameScene extends Phaser.Scene {
         const clusters = findClusters(this.grid);
         
         if (clusters.length > 0) {
-            this.explodeClusters(clusters);
+            // Animate victory before exploding
+            this.animateVictory(clusters).then(() => {
+                this.explodeClusters(clusters);
+            });
         } else {
             // Check if board is empty for wave bonus
             if (this.isBoardEmpty()) {
@@ -1267,7 +1270,6 @@ export class GameScene extends Phaser.Scene {
     // VICTORY ANIMATION AND WAVE SYSTEM
     // ========================================
     
-    // @ts-expect-error - Method ready for future use
     private async animateVictory(matches: Cluster[]): Promise<void> {
         // Calculate total gems
         const totalGems = matches.reduce((sum, cluster) => sum + cluster.size, 0);
@@ -1409,14 +1411,8 @@ export class GameScene extends Phaser.Scene {
         for (let i = 0; i < numGems; i++) {
             const col = Phaser.Math.Between(0, GAME_CONFIG.columns - 1);
             
-            // Find the first empty row from bottom
-            let targetRow = -1;
-            for (let row = GAME_CONFIG.maxRows - 1; row >= 0; row--) {
-                if (this.grid[row][col] === null) {
-                    targetRow = row;
-                    break;
-                }
-            }
+            // Find available row using utility function
+            const targetRow = getAvailableRowInColumn(this.grid, col);
             
             // Skip if column is full
             if (targetRow === -1) continue;

@@ -4,19 +4,7 @@
  */
 
 import Phaser from 'phaser';
-import { GAME_CONFIG, MASCOT_CONFIG, LORD_CONFIG } from '../config/GameConfig';
-
-export type GemType = 'mascot_red' | 'mascot_green' | 'mascot_blue' | 'mascot_yellow' |
-                      'lord_ignis' | 'lord_ventus' | 'lord_aqua' | 'lord_terra' |
-                      'black_gem' | 'bomb_small' | 'bomb_medium' | 'bomb_large' | 
-                      'bomb_line' | 'bomb_color';
-
-export interface GemData {
-    type: GemType;
-    col: number;
-    row: number;
-    color?: string;
-}
+import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG } from '../config/GameConfig';
 
 /**
  * Color configuration for 3D gems
@@ -43,6 +31,36 @@ const GEM_COLORS_3D = {
         dark: 0xCCCC00
     }
 };
+
+/**
+ * Bomb configuration
+ */
+const BOMB_CONFIG = {
+    small: { size: 0.85, fuseCount: 1, label: '3×3', color: 0x444444 },
+    medium: { size: 1.0, fuseCount: 2, label: '5×5', color: 0x333333 },
+    large: { size: 1.15, fuseCount: 3, label: '7×7', color: 0x222222 }
+};
+
+/**
+ * Common text style for bold labels
+ */
+const BOLD_TEXT_STYLE = {
+    fontStyle: 'bold',
+    stroke: '#000000',
+    strokeThickness: 2
+} as const;
+
+export type GemType = 'mascot_red' | 'mascot_green' | 'mascot_blue' | 'mascot_yellow' |
+                      'lord_ignis' | 'lord_ventus' | 'lord_aqua' | 'lord_terra' |
+                      'black_gem' | 'bomb_small' | 'bomb_medium' | 'bomb_large' | 
+                      'bomb_line' | 'bomb_color';
+
+export interface GemData {
+    type: GemType;
+    col: number;
+    row: number;
+    color?: string;
+}
 
 /**
  * Create a mascot gem with realistic 3D effects
@@ -399,13 +417,7 @@ export function createBombGem(
         }
     } else {
         // Standard bombs (small, medium, large)
-        const bombConfig = {
-            small: { size: 0.85, fuseCount: 1, label: '3×3', color: 0x444444 },
-            medium: { size: 1.0, fuseCount: 2, label: '5×5', color: 0x333333 },
-            large: { size: 1.15, fuseCount: 3, label: '7×7', color: 0x222222 }
-        };
-        
-        const config = bombConfig[bombType];
+        const config = BOMB_CONFIG[bombType];
         
         // Shadow
         const shadow = scene.add.ellipse(0, 5, radius * 1.7 * config.size, radius * 0.5, 0x000000, 0.4);
@@ -424,9 +436,7 @@ export function createBombGem(
         const label = scene.add.text(0, 0, config.label, {
             fontSize: `${radius * 0.6 * config.size}px`,
             color: '#FFFFFF',
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 2
+            ...BOLD_TEXT_STYLE
         }).setOrigin(0.5);
         
         container.add([shadow, body, highlight, label]);
@@ -526,8 +536,7 @@ export function createWildGem(
     const wText = scene.add.text(0, 0, 'W', {
         fontSize: `${radius * 1.5}px`,
         color: '#FFFFFF',
-        fontStyle: 'bold',
-        stroke: '#000000',
+        ...BOLD_TEXT_STYLE,
         strokeThickness: 4
     }).setOrigin(0.5);
     

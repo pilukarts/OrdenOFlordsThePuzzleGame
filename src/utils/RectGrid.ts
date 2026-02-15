@@ -113,6 +113,10 @@ export function getAvailableRowInColumn(
     grid: (Phaser.GameObjects.Container | null)[][],
     col: number
 ): number {
+    if (!isValidGrid(col, 0)) {
+        return -1; // Invalid column
+    }
+    
     // Start from bottom and find first empty slot
     for (let row = GAME_CONFIG.maxRows - 1; row >= 0; row--) {
         if (grid[row] && grid[row][col] === null) {

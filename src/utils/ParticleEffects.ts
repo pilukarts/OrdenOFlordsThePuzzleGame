@@ -359,27 +359,33 @@ export function createBombExplosion(
 }
 
 /**
- * Create confetti particle effect
+ * Create confetti particle effect using optimized particle emitter
  */
 export function createConfetti(scene: Phaser.Scene): void {
-    const { width, height } = scene.cameras.main;
+    const { width } = scene.cameras.main;
     const colors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF];
     
-    for (let i = 0; i < 50; i++) {
-        const x = Phaser.Math.Between(0, width);
-        const color = Phaser.Utils.Array.GetRandom(colors);
-        const particle = scene.add.rectangle(x, -20, 10, 10, color);
-        
-        scene.tweens.add({
-            targets: particle,
-            y: height + 20,
-            x: x + Phaser.Math.Between(-100, 100),
-            angle: 360 * 3,
-            duration: Phaser.Math.Between(2000, 3000),
-            ease: 'Linear',
-            onComplete: () => particle.destroy()
-        });
-    }
+    // Create particle emitter for confetti
+    const emitter = scene.add.particles(width / 2, -20, 'particle', {
+        x: { min: 0, max: width },
+        y: -20,
+        speedY: { min: 200, max: 400 },
+        speedX: { min: -50, max: 50 },
+        angle: { min: 0, max: 360 },
+        scale: { min: 0.5, max: 1.5 },
+        alpha: { start: 1, end: 0.5 },
+        lifespan: { min: 2000, max: 3000 },
+        quantity: 2,
+        frequency: 40,
+        tint: colors,
+        gravityY: 100
+    });
+    
+    // Stop emitting after 1 second and cleanup
+    scene.time.delayedCall(1000, () => {
+        emitter.stop();
+        scene.time.delayedCall(3000, () => emitter.destroy());
+    });
 }
 
 /**
