@@ -254,12 +254,12 @@ export function createLordGem(
     // Create hexagonal mask for face
     const maskShape = scene.make.graphics({ x: 0, y: 0 });
     maskShape.fillStyle(0xffffff);
-    // Draw hexagon for mask
+    // Draw hexagon for mask (scaled to 90% to prevent edge artifacts)
     const maskPoints: { x: number; y: number }[] = [];
     for (let i = 0; i < 6; i++) {
         const angle = (Math.PI / 3) * i - Math.PI / 6;
         maskPoints.push({
-            x: radius * 0.9 * Math.cos(angle),
+            x: radius * 0.9 * Math.cos(angle),  // 0.9 scale to avoid edge bleeding
             y: radius * 0.9 * Math.sin(angle)
         });
     }

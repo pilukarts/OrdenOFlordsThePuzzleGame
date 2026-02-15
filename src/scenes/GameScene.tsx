@@ -785,10 +785,10 @@ export class GameScene extends Phaser.Scene {
         const gridBottomY = this.gridStartY + GAME_CONFIG.maxRows * (GAME_CONFIG.cellHeight + GAME_CONFIG.spacing) + 100;
         
         // Add rotation while falling (NEW - as per requirements)
-        const rotationSpeed = Phaser.Math.Between(-200, 200);
+        const rotationDirection = Phaser.Math.Between(-200, 200);
         this.tweens.add({
             targets: gem,
-            angle: rotationSpeed > 0 ? 360 : -360,
+            angle: rotationDirection > 0 ? 360 : -360,
             duration: 2500,
             ease: 'Linear',
             repeat: 0
