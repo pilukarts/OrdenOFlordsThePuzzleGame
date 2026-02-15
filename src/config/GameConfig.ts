@@ -10,13 +10,13 @@ export const GAME_CONFIG = {
     columns: 6,              // 6 vertical columns
     minRows: 4,              // Minimum 4 rows visible
     maxRows: 8,              // Maximum 8 rows (expandable)
-    cellWidth: 80,           // Width of each cell
-    cellHeight: 80,          // Height of each cell
-    spacing: 5,              // Space between cells
+    cellWidth: 72,           // Width of each cell (COMPACT)
+    cellHeight: 72,          // Height of each cell (COMPACT)
+    spacing: 4,              // Space between cells (COMPACT - gems almost touching)
     startX: 300,             // Grid start X (between pillars)
     startY: 150,             // Grid start Y
-    gemRadius: 30,           // Radius for rendering
-    lordGemRadius: 32,       // Lord gem radius
+    gemRadius: 34,           // Radius for rendering (68px diameter for compact layout)
+    lordGemRadius: 34,       // Lord gem radius (same as regular gems for consistency)
     
     // ========================================
     // PHYSICS CONFIGURATION
@@ -362,3 +362,73 @@ export function getComboMultiplier(cascadeLevel: number): number {
     const multipliers = GAME_CONFIG.comboMultipliers as Record<number, number>;
     return multipliers[cascadeLevel] || multipliers[6];
 }
+
+/**
+ * RTP (Return to Player) Configuration
+ * Controls game fairness and win distribution
+ */
+export const RTP_CONFIG = {
+    targetRTP: 96,          // 96% RTP (industry standard)
+    volatility: 'medium',
+    
+    // Gem probability weights (total = 100)
+    gemWeights: {
+        // Mascots (common) - 70%
+        mascot_red: 17.5,
+        mascot_green: 17.5,
+        mascot_blue: 17.5,
+        mascot_yellow: 17.5,
+        
+        // Lords (rare) - 20%
+        lord_ignis: 5,
+        lord_ventus: 5,
+        lord_aqua: 5,
+        lord_terra: 5,
+        
+        // Wilds (very rare) - 8%
+        wild: 8,
+        
+        // Bombs (rare) - 2%
+        bomb_small: 1,
+        bomb_medium: 0.5,
+        bomb_large: 0.3,
+        bomb_line: 0.1,
+        bomb_color: 0.1
+    },
+    
+    // Win/loss control
+    maxConsecutiveWins: 3,      // Force loss after 3 wins
+    minConsecutiveLosses: 2,    // Force win after 2 losses
+    
+    // Win size distribution
+    winDistribution: {
+        noWin: 45,          // 45% no win
+        smallWin: 35,       // 35% small win (1x-2x bet)
+        mediumWin: 15,      // 15% medium (2x-5x bet)
+        bigWin: 4,          // 4% big (5x-10x bet)
+        megaWin: 1          // 1% mega (10x+ bet)
+    }
+};
+
+/**
+ * Grid Configuration for Compact Layout
+ * Gems almost touching for Cygnus-style appearance
+ */
+export const GRID_CONFIG = {
+    columns: 6,
+    startRows: { min: 3, max: 4 },     // Random 3 or 4 rows per spin
+    maxRows: 8,
+    
+    // COMPACT spacing (gems almost touching)
+    cellWidth: 72,
+    cellHeight: 72,
+    gemSize: 68,        // Gem fills almost entire cell
+    gap: 4,             // Only 4px between gems
+    
+    playArea: {
+        left: 380,
+        right: 950,
+        top: 200,
+        bottom: 650
+    }
+};
