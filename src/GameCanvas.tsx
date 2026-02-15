@@ -20,7 +20,7 @@ const GameCanvas: React.FC = () => {
             physics: {
                 default: 'arcade',
                 arcade: {
-                    gravity: { y: 0, x: 0 },
+                    gravity: { y: 800, x: 0 },  // Vertical gravity only
                     debug: false
                 }
             }
