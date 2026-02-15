@@ -5,7 +5,6 @@
 
 import type { GridCoord } from './RectGrid';
 import { getRectNeighbors, isValidGrid } from './RectGrid';
-import { GAME_CONFIG } from '../config/GameConfig';
 import Phaser from 'phaser';
 
 export interface Cluster {
