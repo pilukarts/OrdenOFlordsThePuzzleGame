@@ -7,11 +7,11 @@ export const GAME_CONFIG = {
     // ========================================
     // VERTICAL SLOT GRID CONFIGURATION
     // ========================================
-    columns: 7,              // 7 vertical columns
+    columns: 6,              // 6 vertical columns
     minRows: 4,              // Minimum 4 rows visible
     maxRows: 8,              // Maximum 8 rows (expandable)
-    cellWidth: 70,           // Width of each cell
-    cellHeight: 70,          // Height of each cell
+    cellWidth: 80,           // Width of each cell
+    cellHeight: 80,          // Height of each cell
     spacing: 5,              // Space between cells
     startX: 300,             // Grid start X (between pillars)
     startY: 150,             // Grid start Y

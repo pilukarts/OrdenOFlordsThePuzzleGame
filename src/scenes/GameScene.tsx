@@ -784,6 +784,16 @@ export class GameScene extends Phaser.Scene {
         // Create falling tween
         const gridBottomY = this.gridStartY + GAME_CONFIG.maxRows * (GAME_CONFIG.cellHeight + GAME_CONFIG.spacing) + 100;
         
+        // Add rotation while falling (NEW - as per requirements)
+        const rotationDirection = Phaser.Math.Between(-200, 200);
+        this.tweens.add({
+            targets: gem,
+            angle: rotationDirection > 0 ? 360 : -360,
+            duration: 2500,
+            ease: 'Linear',
+            repeat: 0
+        });
+        
         const fallTween = this.tweens.add({
             targets: gem,
             y: gridBottomY,
@@ -885,6 +895,7 @@ export class GameScene extends Phaser.Scene {
             targets: gem,
             x: targetX,
             y: targetY,
+            angle: 0,  // Straighten out the gem (reset rotation)
             duration: 100,
             ease: 'Power2',
             onComplete: () => {

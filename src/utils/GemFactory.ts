@@ -7,6 +7,53 @@ import Phaser from 'phaser';
 import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG } from '../config/GameConfig';
 
 /**
+ * Create a hexagon background shape
+ */
+function createHexagonBackground(scene: Phaser.Scene, color: number, size: number): Phaser.GameObjects.Graphics {
+    const hexagon = scene.add.graphics();
+    
+    // Calculate 6 points for hexagon (flat top)
+    const points: { x: number; y: number }[] = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;  // Flat top hexagon
+        points.push({
+            x: size * Math.cos(angle),
+            y: size * Math.sin(angle)
+        });
+    }
+    
+    // Create gradient effect for depth
+    const lightColor = Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.ValueToColor(color),
+        Phaser.Display.Color.ValueToColor(0xFFFFFF),
+        100,
+        40
+    );
+    
+    // Fill with gradient
+    hexagon.fillGradientStyle(
+        lightColor.color, lightColor.color,
+        color, color,
+        1
+    );
+    
+    // Draw hexagon path
+    hexagon.beginPath();
+    hexagon.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+        hexagon.lineTo(points[i].x, points[i].y);
+    }
+    hexagon.closePath();
+    hexagon.fillPath();
+    
+    // Add border for definition
+    hexagon.lineStyle(3, 0xFFFFFF, 0.4);
+    hexagon.strokePath();
+    
+    return hexagon;
+}
+
+/**
  * Color configuration for 3D gems
  */
 const GEM_COLORS_3D = {
@@ -80,31 +127,17 @@ export function createMascotGem(
     // Layer 1: Projected shadow (below)
     const shadow = scene.add.ellipse(0, 5, radius * 1.7, radius * 0.5, 0x000000, 0.3);
     
-    // Layer 2: Base circle
-    const base = scene.add.circle(0, 0, radius, colors3D.base);
+    // Layer 2: Hexagon background (CHANGED from circle)
+    const hexBg = createHexagonBackground(scene, colors3D.base, radius);
     
-    // Layer 3: Radial gradient (light top, dark bottom)
-    const gradient = scene.add.graphics();
-    gradient.fillGradientStyle(
-        colors3D.light, colors3D.light,
-        colors3D.dark, colors3D.dark,
-        1
-    );
-    gradient.fillCircle(0, 0, radius);
-    
-    // Layer 4: Inner shadow (bottom arc)
+    // Layer 3: Inner shadow (bottom arc)
     const innerShadow = scene.add.arc(0, radius * 0.3, radius, 180, 360, false, 0x000000, 0.3);
     
-    // Layer 5: Specular highlight (top-left)
+    // Layer 4: Specular highlight (top-left)
     const highlight = scene.add.ellipse(-radius * 0.27, -radius * 0.27, radius * 0.5, radius * 0.33, 0xFFFFFF, 0.6);
     highlight.setBlendMode(Phaser.BlendModes.ADD);
     
-    // Layer 6: Glass border
-    const border = scene.add.circle(0, 0, radius);
-    border.setStrokeStyle(2, 0xFFFFFF, 0.4);
-    border.setFillStyle(0x000000, 0); // Transparent fill
-    
-    // Layer 7: Mascot image
+    // Layer 5: Mascot image
     const mascot = scene.add.image(0, 0, config.assetKey);
     mascot.setDisplaySize(radius * 1.4, radius * 1.4);
     
@@ -115,7 +148,7 @@ export function createMascotGem(
     sparkle.lineBetween(0, -radius * 0.5, 0, radius * 0.5);
     sparkle.setAlpha(0);
     
-    container.add([shadow, base, gradient, innerShadow, highlight, border, mascot, sparkle]);
+    container.add([shadow, hexBg, innerShadow, highlight, mascot, sparkle]);
     container.setSize(radius * 2, radius * 2);
     container.setData('gemType', `mascot_${color}`);
     container.setData('color', color);
@@ -186,18 +219,27 @@ export function createLordGem(
     // Shadow
     const shadow = scene.add.ellipse(3, 4, radius * 2.2, radius * 1.8, 0x000000, 0.5);
     
-    // Main gem circle with gradient
-    const gemCircle = scene.add.graphics();
-    gemCircle.fillGradientStyle(
-        config.glowColor, config.glowColor,
-        config.baseColor, config.baseColor,
-        1
-    );
-    gemCircle.fillCircle(0, 0, radius);
+    // Hexagon background (CHANGED from circle)
+    const hexBg = createHexagonBackground(scene, config.baseColor, radius);
     
     // Rim (golden border for Lord)
-    gemCircle.lineStyle(3, config.rimColor, 0.9);
-    gemCircle.strokeCircle(0, 0, radius);
+    const rimHex = scene.add.graphics();
+    const rimPoints: { x: number; y: number }[] = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;
+        rimPoints.push({
+            x: radius * Math.cos(angle),
+            y: radius * Math.sin(angle)
+        });
+    }
+    rimHex.lineStyle(3, config.rimColor, 0.9);
+    rimHex.beginPath();
+    rimHex.moveTo(rimPoints[0].x, rimPoints[0].y);
+    for (let i = 1; i < rimPoints.length; i++) {
+        rimHex.lineTo(rimPoints[i].x, rimPoints[i].y);
+    }
+    rimHex.closePath();
+    rimHex.strokePath();
     
     // Outer glow
     const outerGlow = scene.add.graphics();
@@ -209,10 +251,25 @@ export function createLordGem(
     const face = scene.add.image(0, 0, config.assetKey);
     face.setDisplaySize(radius * 1.6, radius * 1.6);
     
-    // Create circular mask for face (at origin since face is in container)
+    // Create hexagonal mask for face
     const maskShape = scene.make.graphics({ x: 0, y: 0 });
     maskShape.fillStyle(0xffffff);
-    maskShape.fillCircle(0, 0, radius);
+    // Draw hexagon for mask (scaled to 90% to prevent edge artifacts)
+    const maskPoints: { x: number; y: number }[] = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 6;
+        maskPoints.push({
+            x: radius * 0.9 * Math.cos(angle),  // 0.9 scale to avoid edge bleeding
+            y: radius * 0.9 * Math.sin(angle)
+        });
+    }
+    maskShape.beginPath();
+    maskShape.moveTo(maskPoints[0].x, maskPoints[0].y);
+    for (let i = 1; i < maskPoints.length; i++) {
+        maskShape.lineTo(maskPoints[i].x, maskPoints[i].y);
+    }
+    maskShape.closePath();
+    maskShape.fillPath();
     const mask = maskShape.createGeometryMask();
     face.setMask(mask);
     
@@ -232,7 +289,7 @@ export function createLordGem(
         tint: config.glowColor
     });
     
-    container.add([shadow, outerGlow, gemCircle, face, crown, magicParticles]);
+    container.add([shadow, outerGlow, hexBg, rimHex, face, crown, magicParticles]);
     container.setSize(radius * 2, radius * 2);
     container.setData('gemType', `lord_${lordType}`);
     container.setData('lordType', lordType);
@@ -289,10 +346,8 @@ export function createBlackGem(
     // Shadow
     const shadow = scene.add.ellipse(2, 3, radius * 2, radius * 1.5, 0x000000, 0.6);
     
-    // Main black circle
-    const gemCircle = scene.add.graphics();
-    gemCircle.fillStyle(GAME_CONFIG.colors.black, 1);
-    gemCircle.fillCircle(0, 0, radius);
+    // Hexagon background (CHANGED from circle) - dark purple/black
+    const hexBg = createHexagonBackground(scene, GAME_CONFIG.colors.black, radius);
     
     // Purple aura
     const aura = scene.add.graphics();
@@ -305,7 +360,7 @@ export function createBlackGem(
         fontSize: `${radius * 1.2}px`
     }).setOrigin(0.5);
     
-    container.add([shadow, aura, gemCircle, symbol]);
+    container.add([shadow, aura, hexBg, symbol]);
     container.setSize(radius * 2, radius * 2);
     container.setData('gemType', 'black_gem');
     container.setData('color', 'black');
@@ -422,10 +477,8 @@ export function createBombGem(
         // Shadow
         const shadow = scene.add.ellipse(0, 5, radius * 1.7 * config.size, radius * 0.5, 0x000000, 0.4);
         
-        // Metallic sphere
-        const body = scene.add.graphics();
-        body.fillGradientStyle(0x666666, 0x666666, config.color, config.color, 1);
-        body.fillCircle(0, 0, radius * config.size);
+        // Hexagon background (CHANGED from circle) - metallic sphere
+        const hexBg = createHexagonBackground(scene, config.color, radius * config.size);
         
         // Metallic highlight
         const highlight = scene.add.ellipse(-radius * 0.3 * config.size, -radius * 0.3 * config.size, 
@@ -439,7 +492,7 @@ export function createBombGem(
             ...BOLD_TEXT_STYLE
         }).setOrigin(0.5);
         
-        container.add([shadow, body, highlight, label]);
+        container.add([shadow, hexBg, highlight, label]);
         
         // Add fuses
         for (let i = 0; i < config.fuseCount; i++) {
