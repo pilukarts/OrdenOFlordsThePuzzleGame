@@ -42,6 +42,7 @@ export class GameScene extends Phaser.Scene {
     private gridStartX: number = 0;
     private gridStartY: number = 0;
     private fallingGems: Phaser.GameObjects.Container[] = [];
+    private currentRows: number = GAME_CONFIG.minRows; // Start at minimum rows
     
     // Game state
     private balance = 1000;
@@ -68,6 +69,7 @@ export class GameScene extends Phaser.Scene {
     // Frame bounds
     private frameCenterX = 0;
     private frameCenterY = 0;
+
     
 
 
@@ -692,6 +694,7 @@ export class GameScene extends Phaser.Scene {
         this.roundInProgress = true;
         this.cascadeLevel = 0;
         this.waveNumber = 0;
+        this.currentRows = GAME_CONFIG.minRows; // Reset to minimum rows at start of each round
         this.lordsActivatedThisRound.clear();
         
         // Clear win displays
@@ -726,12 +729,17 @@ export class GameScene extends Phaser.Scene {
         );
         
         let gemsDropped = 0;
+        let currentColumn = 0; // Start from leftmost column
         
         const dropInterval = this.time.addEvent({
             delay: GAME_CONFIG.roundConfiguration.gemDropDelay,
             callback: () => {
-                this.dropSingleGem();
+                // Drop gem in current column (column by column, left to right)
+                this.dropSingleGemInColumn(currentColumn);
                 gemsDropped++;
+                
+                // Move to next column (cycle through columns left to right)
+                currentColumn = (currentColumn + 1) % GAME_CONFIG.columns;
                 
                 if (gemsDropped >= numGems) {
                     dropInterval.remove();
@@ -742,34 +750,34 @@ export class GameScene extends Phaser.Scene {
         });
     }
     
-    private dropSingleGem(): void {
+    private dropSingleGemInColumn(targetColumn: number): void {
         const gemType = getRandomGemType(this.lordsThisRound);
         
-        // Random X position above grid
-        const gridWidth = GAME_CONFIG.columns * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing);
-        const startX = this.gridStartX + Math.random() * gridWidth;
+        // Calculate X position for specific column (center of column)
+        const columnCenterX = this.gridStartX + targetColumn * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing) + GAME_CONFIG.cellWidth / 2;
         const startY = this.gridStartY - 200; // Start well above grid
         
         let gem: Phaser.GameObjects.Container;
         
         if (gemType.startsWith('mascot_')) {
             const color = gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow';
-            gem = createMascotGem(this, startX, startY, color);
+            gem = createMascotGem(this, columnCenterX, startY, color);
         } else if (gemType.startsWith('lord_')) {
             const lordType = gemType.split('_')[1] as 'ignis' | 'ventus' | 'aqua' | 'terra';
-            gem = createLordGem(this, startX, startY, lordType);
+            gem = createLordGem(this, columnCenterX, startY, lordType);
         } else if (gemType === 'black_gem') {
-            gem = createBlackGem(this, startX, startY);
+            gem = createBlackGem(this, columnCenterX, startY);
         } else if (gemType.startsWith('bomb_')) {
             const bombType = gemType.split('_')[1] as 'small' | 'medium' | 'large' | 'line' | 'color';
-            gem = createBombGem(this, startX, startY, bombType);
+            gem = createBombGem(this, columnCenterX, startY, bombType);
         } else {
-            gem = createMascotGem(this, startX, startY, 'red');
+            gem = createMascotGem(this, columnCenterX, startY, 'red');
         }
         
-        // Mark as falling
+        // Mark as falling and store target column
         gem.setData('falling', true);
         gem.setData('settled', false);
+        gem.setData('targetColumn', targetColumn);
         
         // Start gravity-based dropping with collision detection
         this.dropGemWithGravity(gem);
@@ -930,10 +938,16 @@ export class GameScene extends Phaser.Scene {
     private checkMatches(): void {
         this.cascadeLevel++;
         
+        // Expand grid on cascades (from 4 rows to 8 rows)
+        if (this.cascadeLevel > 1 && this.currentRows < GAME_CONFIG.maxRows) {
+            this.currentRows = Math.min(this.currentRows + 1, GAME_CONFIG.maxRows);
+            // Visual feedback for grid expansion could be added here
+        }
+        
         // Check for Lord powers first
         let lordPowerTriggered = false;
         
-        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+        for (let row = 0; row < this.currentRows; row++) {
             for (let col = 0; col < GAME_CONFIG.columns; col++) {
                 const gem = this.grid[row][col];
                 if (!gem) continue;
@@ -958,7 +972,7 @@ export class GameScene extends Phaser.Scene {
         // Check for bomb explosions
         let bombTriggered = false;
         
-        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+        for (let row = 0; row < this.currentRows; row++) {
             for (let col = 0; col < GAME_CONFIG.columns; col++) {
                 const gem = this.grid[row][col];
                 if (!gem) continue;
