@@ -15,7 +15,9 @@ import {
     shakeScreen, 
     createLordPowerEffect, 
     createSuperBonusEffect, 
-    createWinText 
+    createWinText,
+    createConfetti,
+    createVictoryGlow
 } from '../utils/ParticleEffects';
 
 export class GameScene extends Phaser.Scene {
@@ -32,6 +34,7 @@ export class GameScene extends Phaser.Scene {
     private cascadeLevel = 0;
     private lordsThisRound: string[] = [];
     private lordsActivatedThisRound = new Set<string>();
+    private waveNumber = 0;
     
     // UI elements
     private balanceText?: Phaser.GameObjects.Text;
@@ -671,6 +674,7 @@ export class GameScene extends Phaser.Scene {
         this.balance -= this.currentBet;
         this.roundInProgress = true;
         this.cascadeLevel = 0;
+        this.waveNumber = 0;
         this.lordsActivatedThisRound.clear();
         
         // Clear win displays
@@ -887,8 +891,19 @@ export class GameScene extends Phaser.Scene {
         if (clusters.length > 0) {
             this.explodeClusters(clusters);
         } else {
-            // No more matches, check for end of round
-            this.endRound();
+            // Check if board is empty for wave bonus
+            if (this.isBoardEmpty()) {
+                this.waveNumber++;
+                this.showWaveBonus(this.waveNumber);
+                this.time.delayedCall(2000, async () => {
+                    await this.dropNewWave();
+                    await this.wait(500);
+                    this.checkMatches();
+                });
+            } else {
+                // No more matches, check for end of round
+                this.endRound();
+            }
         }
     }
     
@@ -1246,6 +1261,181 @@ export class GameScene extends Phaser.Scene {
         );
         
         this.winDisplays.push(winText);
+    }
+    
+    // ========================================
+    // VICTORY ANIMATION AND WAVE SYSTEM
+    // ========================================
+    
+    // @ts-expect-error - Method ready for future use
+    private async animateVictory(matches: Cluster[]): Promise<void> {
+        // Calculate total gems
+        const totalGems = matches.reduce((sum, cluster) => sum + cluster.size, 0);
+        
+        // Select config based on match size
+        let config;
+        if (totalGems >= 10) {
+            config = GAME_CONFIG.victoryAnimation.megaVictory;
+        } else if (totalGems >= 6) {
+            config = GAME_CONFIG.victoryAnimation.bigVictory;
+        } else {
+            config = GAME_CONFIG.victoryAnimation.normalVictory;
+        }
+        
+        // Apply screen shake if configured
+        if (config.shake > 0) {
+            shakeScreen(this, config.shake * 10);
+        }
+        
+        // Collect all gem containers from matches
+        const allGems: Phaser.GameObjects.Container[] = [];
+        matches.forEach(cluster => {
+            cluster.gems.forEach(gemData => {
+                allGems.push(gemData.container);
+            });
+        });
+        
+        // Create confetti for mega victories
+        if (config.confetti) {
+            createConfetti(this);
+        }
+        
+        // Calculate total win amount
+        let totalWin = 0;
+        matches.forEach(cluster => {
+            const multiplier = getMatchMultiplier(cluster.size);
+            const comboMultiplier = getComboMultiplier(this.cascadeLevel);
+            
+            cluster.gems.forEach(gemData => {
+                const gemType = gemData.container.getData('gemType');
+                const value = GAME_CONFIG.gemValues[gemType as keyof typeof GAME_CONFIG.gemValues] || 0;
+                totalWin += value * multiplier * comboMultiplier;
+            });
+        });
+        
+        // Blinking animation loop
+        for (let i = 0; i < config.blinks; i++) {
+            // Blink ON - scale up with glow
+            allGems.forEach(gem => {
+                if (!gem || !gem.active) return;
+                
+                createVictoryGlow(this, gem, config.glowColor, config.blinkOnTime);
+                
+                this.tweens.add({
+                    targets: gem,
+                    scale: config.scale,
+                    duration: config.blinkOnTime,
+                    ease: 'Sine.easeInOut'
+                });
+            });
+            
+            await this.wait(config.blinkOnTime);
+            
+            // Blink OFF - scale back to normal
+            allGems.forEach(gem => {
+                if (!gem || !gem.active) return;
+                
+                this.tweens.add({
+                    targets: gem,
+                    scale: 1.0,
+                    duration: config.blinkOffTime,
+                    ease: 'Sine.easeInOut'
+                });
+            });
+            
+            await this.wait(config.blinkOffTime);
+        }
+        
+        // Show win amount
+        if (totalWin > 0) {
+            this.addWin(totalWin, totalGems >= 10);
+        }
+    }
+    
+    private isBoardEmpty(): boolean {
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
+                if (this.grid[row][col] !== null) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    
+    private showWaveBonus(waveNum: number): void {
+        const bonus = waveNum * GAME_CONFIG.waveBonus;
+        this.balance += bonus;
+        this.updateUI();
+        
+        // Show animated bonus text
+        const bonusText = this.add.text(
+            this.frameCenterX,
+            this.frameCenterY,
+            `WAVE ${waveNum} BONUS!\n+£${bonus}`,
+            {
+                fontSize: '56px',
+                color: '#FFD700',
+                fontFamily: 'Arial',
+                fontStyle: 'bold',
+                align: 'center',
+                stroke: '#000000',
+                strokeThickness: 8
+            }
+        );
+        bonusText.setOrigin(0.5);
+        bonusText.setDepth(600);
+        
+        // Animate bonus text
+        this.tweens.add({
+            targets: bonusText,
+            scale: { from: 0, to: 1.5 },
+            alpha: { from: 1, to: 0 },
+            y: this.frameCenterY - 100,
+            duration: 1500,
+            ease: 'Power2',
+            onComplete: () => bonusText.destroy()
+        });
+    }
+    
+    private async dropNewWave(): Promise<void> {
+        // Drop new gems in random columns using configured range
+        const numGems = Phaser.Math.Between(
+            GAME_CONFIG.roundConfiguration.gemsPerRound.min,
+            GAME_CONFIG.roundConfiguration.gemsPerRound.max
+        );
+        const promises: Promise<void>[] = [];
+        
+        for (let i = 0; i < numGems; i++) {
+            const col = Phaser.Math.Between(0, GAME_CONFIG.columns - 1);
+            
+            // Find the first empty row from bottom
+            let targetRow = -1;
+            for (let row = GAME_CONFIG.maxRows - 1; row >= 0; row--) {
+                if (this.grid[row][col] === null) {
+                    targetRow = row;
+                    break;
+                }
+            }
+            
+            // Skip if column is full
+            if (targetRow === -1) continue;
+            
+            promises.push(this.createAndDropNewGem(col, targetRow));
+            
+            // Stagger gem drops slightly
+            await this.wait(50);
+        }
+        
+        // Wait for all gems to settle
+        await Promise.all(promises);
+        await this.wait(400);
+    }
+    
+    private wait(ms: number): Promise<void> {
+        return new Promise(resolve => {
+            this.time.delayedCall(ms, () => resolve());
+        });
     }
     
     private endRound(): void {
