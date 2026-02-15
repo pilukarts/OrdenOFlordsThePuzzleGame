@@ -1,20 +1,202 @@
 /**
  * ClusterDetector.ts
- * Flood-fill algorithm to detect clusters of matching gems on rectangular grid
+ * Match detection for vertical slot system - supports horizontal, vertical, and cluster matching
  */
 
 import type { GridCoord } from './RectGrid';
 import { getRectNeighbors, isValidGrid } from './RectGrid';
+import { GAME_CONFIG } from '../config/GameConfig';
 import Phaser from 'phaser';
 
 export interface Cluster {
     gems: Array<{ col: number; row: number; container: Phaser.GameObjects.Container }>;
     color: string;
     size: number;
+    type?: 'horizontal' | 'vertical' | 'cluster';
 }
 
 /**
- * Find all clusters of 3 or more matching gems on rectangular grid
+ * Find all horizontal matches in a specific row
+ * Detects 3+ consecutive gems of same color
+ */
+export function findHorizontalMatches(
+    grid: (Phaser.GameObjects.Container | null)[][],
+    row: number
+): Cluster[] {
+    const matches: Cluster[] = [];
+    let currentMatch: Array<{ col: number; row: number; container: Phaser.GameObjects.Container }> = [];
+    let lastType: string | null = null;
+    
+    for (let col = 0; col < GAME_CONFIG.columns; col++) {
+        const gem = grid[row]?.[col];
+        
+        if (gem === null || !gem) {
+            // Empty space breaks combo
+            if (currentMatch.length >= 3) {
+                matches.push({
+                    gems: [...currentMatch],
+                    color: lastType || 'unknown',
+                    size: currentMatch.length,
+                    type: 'horizontal'
+                });
+            }
+            currentMatch = [];
+            lastType = null;
+            continue;
+        }
+        
+        const gemType = gem.getData('color');
+        
+        // Skip black gems
+        if (gemType === 'black') {
+            if (currentMatch.length >= 3) {
+                matches.push({
+                    gems: [...currentMatch],
+                    color: lastType || 'unknown',
+                    size: currentMatch.length,
+                    type: 'horizontal'
+                });
+            }
+            currentMatch = [];
+            lastType = null;
+            continue;
+        }
+        
+        // Wilds match anything
+        if (gemType === 'wild' || lastType === 'wild' || gemType === lastType) {
+            currentMatch.push({ col, row, container: gem });
+            if (gemType !== 'wild') lastType = gemType;
+        } else {
+            // Different type
+            if (currentMatch.length >= 3) {
+                matches.push({
+                    gems: [...currentMatch],
+                    color: lastType || 'unknown',
+                    size: currentMatch.length,
+                    type: 'horizontal'
+                });
+            }
+            currentMatch = [{ col, row, container: gem }];
+            lastType = gemType;
+        }
+    }
+    
+    // Check last combo
+    if (currentMatch.length >= 3) {
+        matches.push({
+            gems: [...currentMatch],
+            color: lastType || 'unknown',
+            size: currentMatch.length,
+            type: 'horizontal'
+        });
+    }
+    
+    return matches;
+}
+
+/**
+ * Find all vertical matches in a specific column
+ * Detects 3+ consecutive gems of same color
+ */
+export function findVerticalMatches(
+    grid: (Phaser.GameObjects.Container | null)[][],
+    col: number
+): Cluster[] {
+    const matches: Cluster[] = [];
+    let currentMatch: Array<{ col: number; row: number; container: Phaser.GameObjects.Container }> = [];
+    let lastType: string | null = null;
+    
+    for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+        const gem = grid[row]?.[col];
+        
+        if (gem === null || !gem) {
+            if (currentMatch.length >= 3) {
+                matches.push({
+                    gems: [...currentMatch],
+                    color: lastType || 'unknown',
+                    size: currentMatch.length,
+                    type: 'vertical'
+                });
+            }
+            currentMatch = [];
+            lastType = null;
+            continue;
+        }
+        
+        const gemType = gem.getData('color');
+        
+        // Skip black gems
+        if (gemType === 'black') {
+            if (currentMatch.length >= 3) {
+                matches.push({
+                    gems: [...currentMatch],
+                    color: lastType || 'unknown',
+                    size: currentMatch.length,
+                    type: 'vertical'
+                });
+            }
+            currentMatch = [];
+            lastType = null;
+            continue;
+        }
+        
+        if (gemType === 'wild' || lastType === 'wild' || gemType === lastType) {
+            currentMatch.push({ col, row, container: gem });
+            if (gemType !== 'wild') lastType = gemType;
+        } else {
+            if (currentMatch.length >= 3) {
+                matches.push({
+                    gems: [...currentMatch],
+                    color: lastType || 'unknown',
+                    size: currentMatch.length,
+                    type: 'vertical'
+                });
+            }
+            currentMatch = [{ col, row, container: gem }];
+            lastType = gemType;
+        }
+    }
+    
+    if (currentMatch.length >= 3) {
+        matches.push({
+            gems: [...currentMatch],
+            color: lastType || 'unknown',
+            size: currentMatch.length,
+            type: 'vertical'
+        });
+    }
+    
+    return matches;
+}
+
+/**
+ * Detect all matches (horizontal and vertical) in the grid
+ */
+export function detectAllMatches(
+    grid: (Phaser.GameObjects.Container | null)[][]
+): Cluster[] {
+    const allMatches: Cluster[] = [];
+    
+    // Check horizontal matches in ALL rows
+    for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+        const horizontalMatches = findHorizontalMatches(grid, row);
+        allMatches.push(...horizontalMatches);
+    }
+    
+    // Check vertical matches in ALL columns
+    for (let col = 0; col < GAME_CONFIG.columns; col++) {
+        const verticalMatches = findVerticalMatches(grid, col);
+        allMatches.push(...verticalMatches);
+    }
+    
+    // Remove duplicates (gems that are part of multiple matches)
+    // Keep all matches for now, duplicates will be handled during explosion
+    
+    return allMatches;
+}
+
+/**
+ * Find all clusters of 3 or more matching gems on rectangular grid (LEGACY - for flood fill matching)
  */
 export function findClusters(
     grid: (Phaser.GameObjects.Container | null)[][]
@@ -39,7 +221,8 @@ export function findClusters(
                 clusters.push({
                     gems: cluster,
                     color,
-                    size: cluster.length
+                    size: cluster.length,
+                    type: 'cluster'
                 });
             }
         }

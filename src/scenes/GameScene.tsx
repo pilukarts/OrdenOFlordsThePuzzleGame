@@ -1,14 +1,30 @@
 /**
  * GameScene.tsx
- * Complete hexagonal puzzle game implementation with all systems
+ * Vertical slot puzzle game with gravity physics
  */
 
 import Phaser from 'phaser';
 import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
 import { MAX_WIN_CONFIG } from '../config/MaxWinConfig';
-import { gridToPixel, getRectNeighbors, getAvailableRowInColumn } from '../utils/RectGrid';
+import { 
+    gridToPixel, 
+    getRectNeighbors, 
+    getAvailableRowInColumn,
+    getColumnFromX,
+    getColumnCenterX,
+    getRowCenterY,
+    findLowestEmptyRow,
+    canSlideLeft,
+    canSlideRight,
+    findNearestAvailableColumn
+} from '../utils/RectGrid';
 import { createMascotGem, createLordGem, createBlackGem, createBombGem, getRandomGemType } from '../utils/GemFactory';
-import { findClusters, checkLordPower, findAllGemsOfColor, getBombExplosionGems } from '../utils/ClusterDetector';
+import { 
+    detectAllMatches,
+    checkLordPower, 
+    findAllGemsOfColor, 
+    getBombExplosionGems 
+} from '../utils/ClusterDetector';
 import type { Cluster } from '../utils/ClusterDetector';
 import { 
     createExplosion, 
@@ -109,12 +125,13 @@ export class GameScene extends Phaser.Scene {
         frame.setScale(1);
         frame.setDepth(1);
         
-        // Calculate grid position within frame
-        const gridWidth = GAME_CONFIG.columns * GAME_CONFIG.columnWidth;
-        const gridHeight = GAME_CONFIG.maxRows * (GAME_CONFIG.gemSize + GAME_CONFIG.spacing);
+        // Calculate grid position within frame (using new cell-based config)
+        const gridWidth = GAME_CONFIG.columns * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing);
+        const gridHeight = GAME_CONFIG.maxRows * (GAME_CONFIG.cellHeight + GAME_CONFIG.spacing);
         
-        this.gridStartX = this.frameCenterX - gridWidth / 2;
-        this.gridStartY = this.frameCenterY - gridHeight / 2 + 50;
+        // Use configured startX and startY, or calculate centered if not set
+        this.gridStartX = GAME_CONFIG.startX || (this.frameCenterX - gridWidth / 2);
+        this.gridStartY = GAME_CONFIG.startY || (this.frameCenterY - gridHeight / 2 + 50);
         
         // Initialize empty grid
         this.initializeGrid();
@@ -728,8 +745,10 @@ export class GameScene extends Phaser.Scene {
     private dropSingleGem(): void {
         const gemType = getRandomGemType(this.lordsThisRound);
         
-        const startX = this.gridStartX + Math.random() * (GAME_CONFIG.columns * GAME_CONFIG.columnWidth);
-        const startY = this.gridStartY - 100;
+        // Random X position above grid
+        const gridWidth = GAME_CONFIG.columns * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing);
+        const startX = this.gridStartX + Math.random() * gridWidth;
+        const startY = this.gridStartY - 200; // Start well above grid
         
         let gem: Phaser.GameObjects.Container;
         
@@ -748,88 +767,162 @@ export class GameScene extends Phaser.Scene {
             gem = createMascotGem(this, startX, startY, 'red');
         }
         
-        // Add physics
-        if (!this.physics || !this.physics.add) {
-            console.error('Physics system not initialized. Ensure arcade physics is enabled in GameCanvas.tsx configuration.');
-            return;
-        }
+        // Mark as falling
+        gem.setData('falling', true);
+        gem.setData('settled', false);
         
-        this.physics.add.existing(gem);
-        const body = gem.body as Phaser.Physics.Arcade.Body;
-        body.setVelocity(0, 0);
-        body.setBounce(GAME_CONFIG.bounce);
-        body.setDrag(GAME_CONFIG.drag);
-        body.setCollideWorldBounds(true);
+        // Start gravity-based dropping with collision detection
+        this.dropGemWithGravity(gem);
         
         this.fallingGems.push(gem);
     }
     
-    private onAllGemsSettled(): void {
-        // Snap gems to grid positions
-        this.fallingGems.forEach(gem => {
-            const pixelPos = { x: gem.x - this.gridStartX, y: gem.y - this.gridStartY };
-            const hexPos = this.findNearestEmptyHex(pixelPos.x, pixelPos.y);
-            
-            if (hexPos !== null) {
-                const targetPixel = gridToPixel(hexPos.col, hexPos.row, this.gridStartX, this.gridStartY);
-                const targetX = targetPixel.x;
-                const targetY = targetPixel.y;
-                
-                // Snap to position
-                this.tweens.add({
-                    targets: gem,
-                    x: targetX,
-                    y: targetY,
-                    duration: 200,
-                    ease: 'Power2'
-                });
-                
-                gem.setData('col', hexPos.col);
-                gem.setData('row', hexPos.row);
-                this.grid[hexPos.row][hexPos.col] = gem;
-                
-                // Check if it's a lord/wild
-                this.checkWildLanding(gem, hexPos.row, hexPos.col);
-                
-                // Disable physics
-                const body = gem.body as Phaser.Physics.Arcade.Body;
-                body.setVelocity(0, 0);
-                if (this.physics && this.physics.world) {
-                    this.physics.world.disable(gem);
+    /**
+     * Drop gem with gravity and sliding physics
+     */
+    private dropGemWithGravity(gem: Phaser.GameObjects.Container): void {
+        // Create falling tween
+        const gridBottomY = this.gridStartY + GAME_CONFIG.maxRows * (GAME_CONFIG.cellHeight + GAME_CONFIG.spacing) + 100;
+        
+        const fallTween = this.tweens.add({
+            targets: gem,
+            y: gridBottomY,
+            duration: 2500,
+            ease: 'Cubic.easeIn',
+            onUpdate: () => {
+                // Check collision every frame
+                if (!gem.getData('settled')) {
+                    this.checkGemCollision(gem);
                 }
-            } else {
-                // No space, destroy gem
-                gem.destroy();
-            }
-        });
-        
-        this.fallingGems = [];
-        
-        // Check for matches
-        this.time.delayedCall(300, () => this.checkMatches());
-    }
-    
-    private findNearestEmptyHex(x: number, y: number): { col: number; row: number } | null {
-        let nearestDist = Infinity;
-        let nearest: { col: number; row: number } | null = null;
-        
-        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
-            for (let col = 0; col < GAME_CONFIG.columns; col++) {
-                if (this.grid[row][col] === null) {
-                    const hexPixel = gridToPixel(col, row, this.gridStartX, this.gridStartY);
-                    const dist = Phaser.Math.Distance.Between(x, y, hexPixel.x, hexPixel.y);
-                    
-                    if (dist < nearestDist) {
-                        nearestDist = dist;
-                        nearest = { col, row };
+            },
+            onComplete: () => {
+                // Safety: if gem hasn't settled by now, force settlement
+                if (!gem.getData('settled')) {
+                    const column = getColumnFromX(gem.x, this.gridStartX);
+                    const targetRow = findLowestEmptyRow(this.grid, column);
+                    if (targetRow !== -1) {
+                        this.snapGemToGrid(gem, column, targetRow);
+                    } else {
+                        // No space, destroy gem
+                        gem.destroy();
+                        const index = this.fallingGems.indexOf(gem);
+                        if (index > -1) {
+                            this.fallingGems.splice(index, 1);
+                        }
                     }
                 }
             }
+        });
+        
+        gem.setData('fallTween', fallTween);
+    }
+    
+    /**
+     * Check gem collision and handle sliding
+     */
+    private checkGemCollision(gem: Phaser.GameObjects.Container): void {
+        // Calculate which column gem is over
+        const column = getColumnFromX(gem.x, this.gridStartX);
+        
+        // Find lowest empty row in this column
+        const targetRow = findLowestEmptyRow(this.grid, column);
+        
+        if (targetRow === -1) {
+            // Column full, try sliding
+            const slideAmount = GAME_CONFIG.slideSpeed * GAME_CONFIG.frameTime60FPS;
+            
+            if (canSlideLeft(this.grid, column)) {
+                gem.x -= slideAmount;
+                return;
+            }
+            
+            if (canSlideRight(this.grid, column)) {
+                gem.x += slideAmount;
+                return;
+            }
+            
+            // Can't slide, find nearest available column
+            const nearestColumn = findNearestAvailableColumn(this.grid, column);
+            if (nearestColumn !== -1) {
+                // Move towards that column
+                const targetX = getColumnCenterX(nearestColumn, this.gridStartX);
+                if (gem.x < targetX) {
+                    gem.x += slideAmount;
+                } else {
+                    gem.x -= slideAmount;
+                }
+            }
+        } else {
+            // Found empty space, check if gem reached it
+            const targetY = getRowCenterY(targetRow, this.gridStartY);
+            
+            if (gem.y >= targetY - GAME_CONFIG.collisionTolerance) {
+                // Snap to grid position
+                this.snapGemToGrid(gem, column, targetRow);
+            }
+        }
+    }
+    
+    /**
+     * Snap gem to final grid position
+     */
+    private snapGemToGrid(gem: Phaser.GameObjects.Container, col: number, row: number): void {
+        // Stop all physics
+        const fallTween = gem.getData('fallTween');
+        if (fallTween) {
+            fallTween.stop();
+        }
+        this.tweens.killTweensOf(gem);
+        
+        // Mark as settling
+        gem.setData('falling', false);
+        
+        // Snap to exact grid position
+        const targetX = getColumnCenterX(col, this.gridStartX);
+        const targetY = getRowCenterY(row, this.gridStartY);
+        
+        this.tweens.add({
+            targets: gem,
+            x: targetX,
+            y: targetY,
+            duration: 100,
+            ease: 'Power2',
+            onComplete: () => {
+                // Add to grid
+                this.grid[row][col] = gem;
+                gem.setData('col', col);
+                gem.setData('row', row);
+                gem.setData('settled', true);
+                
+                // Check if it's a lord/wild
+                this.checkWildLanding(gem, row, col);
+            }
+        });
+    }
+    
+    private onAllGemsSettled(): void {
+        // With new gravity system, gems settle themselves via snapGemToGrid
+        // Just wait for all to finish settling and check for matches
+        this.fallingGems = this.fallingGems.filter(gem => {
+            const settled = gem.getData('settled');
+            if (!settled && gem.scene) {
+                // Still falling, keep in array
+                return true;
+            }
+            // Settled or destroyed, remove from array
+            return false;
+        });
+        
+        // If gems still falling, check again in a moment
+        if (this.fallingGems.length > 0) {
+            this.time.delayedCall(100, () => this.onAllGemsSettled());
+            return;
         }
         
-        return nearest;
+        // All gems settled, check for matches
+        this.time.delayedCall(300, () => this.checkMatches());
     }
-
+    
     // ========================================
     // MATCH DETECTION AND EXPLOSIONS
     // ========================================
@@ -885,8 +978,8 @@ export class GameScene extends Phaser.Scene {
             return;
         }
         
-        // Find normal clusters
-        const clusters = findClusters(this.grid);
+        // Find normal clusters (using new horizontal/vertical match detection)
+        const clusters = detectAllMatches(this.grid);
         
         if (clusters.length > 0) {
             // Animate victory before exploding
@@ -1037,10 +1130,11 @@ export class GameScene extends Phaser.Scene {
     
     private applyGravityToColumn(col: number): void {
         // Compact all non-null gems to the bottom of the column
+        // Row 0 is at the BOTTOM in our new system
         const gems: Phaser.GameObjects.Container[] = [];
         
         // Collect all non-null gems in this column from bottom to top
-        for (let row = GAME_CONFIG.maxRows - 1; row >= 0; row--) {
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
             const gem = this.grid[row][col];
             if (gem !== null) {
                 gems.push(gem);
@@ -1052,9 +1146,9 @@ export class GameScene extends Phaser.Scene {
             this.grid[row][col] = null;
         }
         
-        // Place gems back starting from the bottom
+        // Place gems back starting from the bottom (row 0)
         for (let i = 0; i < gems.length; i++) {
-            const targetRow = GAME_CONFIG.maxRows - 1 - i;
+            const targetRow = i; // Stack from bottom up
             const gem = gems[i];
             
             this.grid[targetRow][col] = gem;
@@ -1062,14 +1156,13 @@ export class GameScene extends Phaser.Scene {
             gem.setData('col', col);
             
             // Animate gem falling to new position
-            const targetPixel = gridToPixel(col, targetRow, this.gridStartX, this.gridStartY);
-            const targetY = targetPixel.y;
+            const targetY = getRowCenterY(targetRow, this.gridStartY);
             
             this.tweens.add({
                 targets: gem,
                 y: targetY,
                 duration: 300,
-                ease: 'Bounce.easeOut'
+                ease: 'Cubic.easeIn'
             });
         }
     }

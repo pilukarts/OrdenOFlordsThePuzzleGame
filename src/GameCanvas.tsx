@@ -1,7 +1,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
-import { GameScene } from './scenes/GameScene'; // Ruta corregida
+import { GameScene } from './scenes/GameScene';
+import { GAME_CONFIG } from './config/GameConfig';
 
 const GameCanvas: React.FC = () => {
     const gameRef = useRef<Phaser.Game | null>(null);
@@ -20,7 +21,7 @@ const GameCanvas: React.FC = () => {
             physics: {
                 default: 'arcade',
                 arcade: {
-                    gravity: { y: 800, x: 0 },  // Vertical gravity only
+                    gravity: { y: GAME_CONFIG.gravity, x: 0 },  // Vertical gravity from config
                     debug: false
                 }
             }
