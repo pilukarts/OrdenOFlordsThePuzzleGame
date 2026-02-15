@@ -753,8 +753,8 @@ export class GameScene extends Phaser.Scene {
     private dropSingleGemInColumn(targetColumn: number): void {
         const gemType = getRandomGemType(this.lordsThisRound);
         
-        // Calculate X position for specific column (center of column)
-        const columnCenterX = this.gridStartX + targetColumn * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing) + GAME_CONFIG.cellWidth / 2;
+        // Use helper function for column center X position
+        const columnCenterX = getColumnCenterX(targetColumn, this.gridStartX);
         const startY = this.gridStartY - 200; // Start well above grid
         
         let gem: Phaser.GameObjects.Container;

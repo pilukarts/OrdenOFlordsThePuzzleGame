@@ -3,6 +3,12 @@
  * Complete configuration for the Cygnus-style hexagonal puzzle game
  */
 
+// ========================================
+// BET LIMITS CONSTANTS
+// ========================================
+export const MIN_BET = 0.20;
+export const MAX_BET = 10.0;
+
 export const GAME_CONFIG = {
     // ========================================
     // VERTICAL SLOT GRID CONFIGURATION
@@ -259,7 +265,7 @@ export const GAME_CONFIG = {
             optimizer: {
                 name: 'Optimizer',
                 description: 'Adjusts bet based on balance (1% of balance)',
-                calculate: (balance: number) => Math.max(0.20, Math.min(10.0, balance * 0.01))
+                calculate: (balance: number) => Math.max(MIN_BET, Math.min(MAX_BET, balance * 0.01))
             },
             leveller: {
                 name: 'Leveller', 
@@ -271,9 +277,9 @@ export const GAME_CONFIG = {
                 description: 'Increases bet on wins, decreases on losses',
                 calculate: (_balance: number, currentBet: number, lastWin: boolean) => {
                     if (lastWin) {
-                        return Math.min(10.0, currentBet * 1.5);
+                        return Math.min(MAX_BET, currentBet * 1.5);
                     } else {
-                        return Math.max(0.20, currentBet * 0.75);
+                        return Math.max(MIN_BET, currentBet * 0.75);
                     }
                 }
             },
@@ -282,9 +288,9 @@ export const GAME_CONFIG = {
                 description: 'Doubles bet after loss, resets after win',
                 calculate: (_balance: number, currentBet: number, lastWin: boolean) => {
                     if (lastWin) {
-                        return Math.max(0.20, currentBet / 2);
+                        return Math.max(MIN_BET, currentBet / 2);
                     } else {
-                        return Math.min(10.0, currentBet * 2);
+                        return Math.min(MAX_BET, currentBet * 2);
                     }
                 }
             }

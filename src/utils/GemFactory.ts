@@ -160,9 +160,9 @@ export function createMascotGem(
     // Alchemical rune overlay (simple cross pattern for medieval aesthetic)
     const rune = scene.add.graphics();
     rune.lineStyle(1, 0xFFD700, 0.3);
-    const runeSize = radius * 0.15;
-    rune.lineBetween(-runeSize, 0, runeSize, 0);
-    rune.lineBetween(0, -runeSize, 0, runeSize);
+    const runeCrossHalfSize = radius * 0.15; // Half-size of cross pattern
+    rune.lineBetween(-runeCrossHalfSize, 0, runeCrossHalfSize, 0);
+    rune.lineBetween(0, -runeCrossHalfSize, 0, runeCrossHalfSize);
     rune.setAlpha(0);
     
     container.add([shadow, base, gradient, innerShadow, highlight, border, mascot, rune]);
