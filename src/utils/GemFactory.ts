@@ -1,10 +1,26 @@
 /**
  * GemFactory.ts
  * Factory for creating different types of gems with visual effects
+ * Now featuring hexagonal gem shapes with alchemical medieval aesthetics
  */
 
 import Phaser from 'phaser';
 import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG } from '../config/GameConfig';
+
+/**
+ * Helper function to create hexagon points for a given radius
+ */
+function getHexagonPoints(radius: number): Phaser.Geom.Point[] {
+    const points: Phaser.Geom.Point[] = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 2; // Start from top
+        points.push(new Phaser.Geom.Point(
+            Math.cos(angle) * radius,
+            Math.sin(angle) * radius
+        ));
+    }
+    return points;
+}
 
 /**
  * Color configuration for 3D gems
@@ -63,7 +79,7 @@ export interface GemData {
 }
 
 /**
- * Create a mascot gem with realistic 3D effects
+ * Create a mascot gem with realistic 3D hexagonal effects and alchemical runes
  */
 export function createMascotGem(
     scene: Phaser.Scene,
@@ -77,49 +93,83 @@ export function createMascotGem(
     const colors3D = GEM_COLORS_3D[color];
     const radius = GAME_CONFIG.gemRadius;
     
+    // Get hexagon points
+    const hexPoints = getHexagonPoints(radius);
+    
     // Layer 1: Projected shadow (below)
-    const shadow = scene.add.ellipse(0, 5, radius * 1.7, radius * 0.5, 0x000000, 0.3);
+    const shadowHex = getHexagonPoints(radius * 1.1);
+    const shadow = scene.add.graphics();
+    shadow.fillStyle(0x000000, 0.3);
+    shadow.beginPath();
+    shadow.moveTo(shadowHex[0].x, shadowHex[0].y + 5);
+    shadowHex.forEach(point => shadow.lineTo(point.x, point.y + 5));
+    shadow.closePath();
+    shadow.fillPath();
     
-    // Layer 2: Base circle
-    const base = scene.add.circle(0, 0, radius, colors3D.base);
+    // Layer 2: Base hexagon
+    const base = scene.add.graphics();
+    base.fillStyle(colors3D.base);
+    base.beginPath();
+    base.moveTo(hexPoints[0].x, hexPoints[0].y);
+    hexPoints.forEach(point => base.lineTo(point.x, point.y));
+    base.closePath();
+    base.fillPath();
     
-    // Layer 3: Radial gradient (light top, dark bottom)
+    // Layer 3: Radial gradient (light top, dark bottom) - using circle for gradient effect
     const gradient = scene.add.graphics();
     gradient.fillGradientStyle(
         colors3D.light, colors3D.light,
         colors3D.dark, colors3D.dark,
         1
     );
-    gradient.fillCircle(0, 0, radius);
+    // Create mask with hexagon shape
+    gradient.beginPath();
+    gradient.moveTo(hexPoints[0].x, hexPoints[0].y);
+    hexPoints.forEach(point => gradient.lineTo(point.x, point.y));
+    gradient.closePath();
+    gradient.fillPath();
     
-    // Layer 4: Inner shadow (bottom arc)
-    const innerShadow = scene.add.arc(0, radius * 0.3, radius, 180, 360, false, 0x000000, 0.3);
+    // Layer 4: Inner shadow (bottom arc) - darkening bottom half
+    const innerShadow = scene.add.graphics();
+    innerShadow.fillStyle(0x000000, 0.2);
+    innerShadow.beginPath();
+    innerShadow.moveTo(hexPoints[3].x, hexPoints[3].y);
+    innerShadow.lineTo(hexPoints[4].x, hexPoints[4].y);
+    innerShadow.lineTo(hexPoints[5].x, hexPoints[5].y);
+    innerShadow.lineTo(0, 0);
+    innerShadow.closePath();
+    innerShadow.fillPath();
     
     // Layer 5: Specular highlight (top-left)
     const highlight = scene.add.ellipse(-radius * 0.27, -radius * 0.27, radius * 0.5, radius * 0.33, 0xFFFFFF, 0.6);
     highlight.setBlendMode(Phaser.BlendModes.ADD);
     
-    // Layer 6: Glass border
-    const border = scene.add.circle(0, 0, radius);
-    border.setStrokeStyle(2, 0xFFFFFF, 0.4);
-    border.setFillStyle(0x000000, 0); // Transparent fill
+    // Layer 6: Hexagon border with stone/carved look
+    const border = scene.add.graphics();
+    border.lineStyle(3, 0xFFD700, 0.7); // Golden border for medieval look
+    border.beginPath();
+    border.moveTo(hexPoints[0].x, hexPoints[0].y);
+    hexPoints.forEach(point => border.lineTo(point.x, point.y));
+    border.closePath();
+    border.strokePath();
     
-    // Layer 7: Mascot image
+    // Layer 7: Mascot image (centered)
     const mascot = scene.add.image(0, 0, config.assetKey);
-    mascot.setDisplaySize(radius * 1.4, radius * 1.4);
+    mascot.setDisplaySize(radius * 1.2, radius * 1.2);
     
-    // Sparkle for animation
-    const sparkle = scene.add.graphics();
-    sparkle.lineStyle(2, 0xFFFFFF, 0.8);
-    sparkle.lineBetween(-radius * 0.5, 0, radius * 0.5, 0);
-    sparkle.lineBetween(0, -radius * 0.5, 0, radius * 0.5);
-    sparkle.setAlpha(0);
+    // Alchemical rune overlay (simple cross pattern for medieval aesthetic)
+    const rune = scene.add.graphics();
+    rune.lineStyle(1, 0xFFD700, 0.3);
+    const runeSize = radius * 0.15;
+    rune.lineBetween(-runeSize, 0, runeSize, 0);
+    rune.lineBetween(0, -runeSize, 0, runeSize);
+    rune.setAlpha(0);
     
-    container.add([shadow, base, gradient, innerShadow, highlight, border, mascot, sparkle]);
+    container.add([shadow, base, gradient, innerShadow, highlight, border, mascot, rune]);
     container.setSize(radius * 2, radius * 2);
     container.setData('gemType', `mascot_${color}`);
     container.setData('color', color);
-    container.setData('sparkle', sparkle);
+    container.setData('rune', rune);
     container.setData('highlight', highlight);
     
     // Only start animations if NOT skipped
@@ -154,11 +204,10 @@ export function createMascotGem(
             ease: 'Sine.easeInOut'
         });
         
-        // Sparkle animation
+        // Rune glow animation
         scene.tweens.add({
-            targets: sparkle,
-            alpha: { from: 0, to: 1 },
-            angle: 180,
+            targets: rune,
+            alpha: { from: 0, to: 0.6 },
             duration: GAME_CONFIG.animations.sparkle.duration,
             yoyo: true,
             repeat: -1,
@@ -170,7 +219,7 @@ export function createMascotGem(
 }
 
 /**
- * Create a Lord gem with face portrait and special effects
+ * Create a Lord gem with face portrait and special hexagonal effects
  */
 export function createLordGem(
     scene: Phaser.Scene,
@@ -183,40 +232,67 @@ export function createLordGem(
     const config = LORD_CONFIG[lordType];
     const radius = GAME_CONFIG.lordGemRadius;
     
-    // Shadow
-    const shadow = scene.add.ellipse(3, 4, radius * 2.2, radius * 1.8, 0x000000, 0.5);
+    // Get hexagon points for Lord gem
+    const hexPoints = getHexagonPoints(radius);
+    const shadowHex = getHexagonPoints(radius * 1.15);
     
-    // Main gem circle with gradient
+    // Shadow (hexagonal)
+    const shadow = scene.add.graphics();
+    shadow.fillStyle(0x000000, 0.5);
+    shadow.beginPath();
+    shadow.moveTo(shadowHex[0].x + 3, shadowHex[0].y + 4);
+    shadowHex.forEach(point => shadow.lineTo(point.x + 3, point.y + 4));
+    shadow.closePath();
+    shadow.fillPath();
+    
+    // Main gem hexagon with gradient
     const gemCircle = scene.add.graphics();
     gemCircle.fillGradientStyle(
         config.glowColor, config.glowColor,
         config.baseColor, config.baseColor,
         1
     );
-    gemCircle.fillCircle(0, 0, radius);
+    gemCircle.beginPath();
+    gemCircle.moveTo(hexPoints[0].x, hexPoints[0].y);
+    hexPoints.forEach(point => gemCircle.lineTo(point.x, point.y));
+    gemCircle.closePath();
+    gemCircle.fillPath();
     
-    // Rim (golden border for Lord)
-    gemCircle.lineStyle(3, config.rimColor, 0.9);
-    gemCircle.strokeCircle(0, 0, radius);
+    // Rim (golden border for Lord with medieval look)
+    gemCircle.lineStyle(4, config.rimColor, 0.95);
+    gemCircle.beginPath();
+    gemCircle.moveTo(hexPoints[0].x, hexPoints[0].y);
+    hexPoints.forEach(point => gemCircle.lineTo(point.x, point.y));
+    gemCircle.closePath();
+    gemCircle.strokePath();
     
-    // Outer glow
+    // Outer glow (hexagonal)
+    const glowHex = getHexagonPoints(radius * 1.25);
     const outerGlow = scene.add.graphics();
-    outerGlow.fillStyle(config.glowColor, 0.3);
-    outerGlow.fillCircle(0, 0, radius * 1.2);
+    outerGlow.fillStyle(config.glowColor, 0.4);
+    outerGlow.beginPath();
+    outerGlow.moveTo(glowHex[0].x, glowHex[0].y);
+    glowHex.forEach(point => outerGlow.lineTo(point.x, point.y));
+    outerGlow.closePath();
+    outerGlow.fillPath();
     outerGlow.setBlendMode(Phaser.BlendModes.ADD);
     
     // Lord face portrait
     const face = scene.add.image(0, 0, config.assetKey);
-    face.setDisplaySize(radius * 1.6, radius * 1.6);
+    face.setDisplaySize(radius * 1.5, radius * 1.5);
     
-    // Create circular mask for face (at origin since face is in container)
+    // Create hexagonal mask for face
     const maskShape = scene.make.graphics({ x: 0, y: 0 });
     maskShape.fillStyle(0xffffff);
-    maskShape.fillCircle(0, 0, radius);
+    maskShape.beginPath();
+    maskShape.moveTo(hexPoints[0].x, hexPoints[0].y);
+    hexPoints.forEach(point => maskShape.lineTo(point.x, point.y));
+    maskShape.closePath();
+    maskShape.fillPath();
     const mask = maskShape.createGeometryMask();
     face.setMask(mask);
     
-    // Crown icon (small)
+    // Crown icon (small) - medieval aesthetic
     const crown = scene.add.text(0, -radius * 0.7, '👑', {
         fontSize: `${radius * 0.6}px`
     }).setOrigin(0.5);
