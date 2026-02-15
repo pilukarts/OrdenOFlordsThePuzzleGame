@@ -64,6 +64,9 @@ export class GameScene extends Phaser.Scene {
     private activeRows = 4;  // Initialize with default value
     private roundWinnings = 0;
     
+    // Cache for gem weight total (computed once)
+    private gemWeightTotal = 0;
+    
     // UI elements
     private balanceText?: Phaser.GameObjects.Text;
     private betText?: Phaser.GameObjects.Text;
@@ -85,6 +88,8 @@ export class GameScene extends Phaser.Scene {
 
     constructor() {
         super({ key: 'GameScene' });
+        // Cache gem weight total for performance
+        this.gemWeightTotal = Object.values(RTP_CONFIG.gemWeights).reduce((a, b) => a + b, 0);
     }
 
     preload() {
@@ -1943,8 +1948,7 @@ export class GameScene extends Phaser.Scene {
      */
     private getWeightedRandomGemType(): string {
         const weights = RTP_CONFIG.gemWeights;
-        const total = Object.values(weights).reduce((a, b) => a + b, 0);
-        let random = Math.random() * total;
+        let random = Math.random() * this.gemWeightTotal;
         
         for (const [type, weight] of Object.entries(weights)) {
             random -= weight;
@@ -2020,7 +2024,7 @@ export class GameScene extends Phaser.Scene {
      */
     private showPersistentResult(): void {
         const isWin = this.roundWinnings > 0;
-        const betMultiple = isWin ? this.roundWinnings / this.currentBet : 0;
+        const betMultiple = (isWin && this.currentBet > 0) ? this.roundWinnings / this.currentBet : 0;
         
         let message: string;
         let color: string;
