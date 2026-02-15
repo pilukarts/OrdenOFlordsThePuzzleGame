@@ -2,7 +2,6 @@
 import React, { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { GameScene } from './scenes/GameScene';
-import { GAME_CONFIG } from './config/GameConfig';
 
 const GameCanvas: React.FC = () => {
     const gameRef = useRef<Phaser.Game | null>(null);
@@ -17,14 +16,8 @@ const GameCanvas: React.FC = () => {
             width: 900,
             height: 650,
             parent: 'phaser-container',
-            scene: [GameScene],
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { y: GAME_CONFIG.gravity, x: 0 },  // Vertical gravity from config
-                    debug: false
-                }
-            }
+            scene: [GameScene]
+            // No physics needed - using tween-based animations only
         };
 
         gameRef.current = new Phaser.Game(config);

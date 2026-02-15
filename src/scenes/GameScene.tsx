@@ -430,7 +430,17 @@ export class GameScene extends Phaser.Scene {
         col: number, 
         lordType: string
     ): void {
-        const neighbors = getRectNeighbors(col, row);
+        // Simple 4-neighbor check (up, down, left, right)
+        const neighbors = [
+            { col: col - 1, row: row },
+            { col: col + 1, row: row },
+            { col: col, row: row - 1 },
+            { col: col, row: row + 1 }
+        ].filter(n => 
+            n.col >= 0 && n.col < GAME_CONFIG.columns &&
+            n.row >= 0 && n.row < GAME_CONFIG.maxRows
+        );
+        
         const lordConfig = LORD_CONFIG[lordType as keyof typeof LORD_CONFIG];
         const matchColor = lordConfig.matchColor;
         
@@ -1276,7 +1286,7 @@ export class GameScene extends Phaser.Scene {
             gem.setData('col', col);
             
             // Animate gem falling to new position
-            const targetY = getRowCenterY(targetRow, this.gridStartY);
+            const targetY = this.getGridY(targetRow);
             
             this.tweens.add({
                 targets: gem,
@@ -1313,7 +1323,7 @@ export class GameScene extends Phaser.Scene {
     
     private createAndDropNewGem(col: number, row: number): Promise<void> {
         return new Promise((resolve) => {
-            // 🐛 DEBUG: Check if position is already occupied
+            // Check if position is already occupied
             if (this.grid[row][col] !== null) {
                 console.warn(`[CASCADE] Skipping occupied cell: col=${col} row=${row}`);
                 resolve();
@@ -1322,16 +1332,12 @@ export class GameScene extends Phaser.Scene {
             
             const gemType = getRandomGemType(this.lordsThisRound);
             
-            // Calculate target position
-            const targetPixel = gridToPixel(col, row, this.gridStartX, this.gridStartY);
-            const targetX = targetPixel.x;
-            const targetY = targetPixel.y;
+            // Calculate target position using new grid methods
+            const targetX = this.getGridX(col);
+            const targetY = this.getGridY(row);
             
             // Start position: directly above the target column
-            const startY = this.gridStartY - 300;
-            
-            // 🐛 DEBUG: Log positions
-            console.log(`[CASCADE] Gem ${gemType} col=${col} row=${row} startY=${startY} targetY=${targetY} distance=${targetY - startY}`);
+            const startY = GAME_CONFIG.playArea.top - 300;
             
             // Create the gem at TARGET X position (no horizontal movement needed)
             let gem: Phaser.GameObjects.Container;
@@ -1614,18 +1620,21 @@ export class GameScene extends Phaser.Scene {
     }
     
     private async dropNewWave(): Promise<void> {
-        // Drop new gems in random columns using configured range
-        const numGems = Phaser.Math.Between(
-            GAME_CONFIG.roundConfiguration.gemsPerRound.min,
-            GAME_CONFIG.roundConfiguration.gemsPerRound.max
-        );
+        // Drop new gems in random columns - simplified for grid system
+        const numGems = 12;  // Fixed number for wave bonus
         const promises: Promise<void>[] = [];
         
         for (let i = 0; i < numGems; i++) {
             const col = Phaser.Math.Between(0, GAME_CONFIG.columns - 1);
             
-            // Find available row using utility function
-            const targetRow = getAvailableRowInColumn(this.grid, col);
+            // Find available row (first empty spot from bottom)
+            let targetRow = -1;
+            for (let row = 0; row < this.activeRows; row++) {
+                if (this.grid[row][col] === null) {
+                    targetRow = row;
+                    break;
+                }
+            }
             
             // Skip if column is full
             if (targetRow === -1) continue;

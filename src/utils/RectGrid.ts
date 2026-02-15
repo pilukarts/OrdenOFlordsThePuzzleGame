@@ -18,7 +18,9 @@ export interface PixelCoord {
 /**
  * Convert grid coordinates to pixel coordinates
  * Row 0 is at BOTTOM, higher rows go UP
+ * DEPRECATED: Use getGridX() and getGridY() from GameScene instead
  */
+/*
 export function gridToPixel(col: number, row: number, gridStartX: number, gridStartY: number): PixelCoord {
     const x = gridStartX + col * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing) + GAME_CONFIG.cellWidth / 2;
     // Invert row: row 0 should be at bottom
@@ -28,10 +30,13 @@ export function gridToPixel(col: number, row: number, gridStartX: number, gridSt
     
     return { x, y };
 }
+*/
 
 /**
  * Convert pixel coordinates to grid coordinates
+ * DEPRECATED: Grid now managed directly
  */
+/*
 export function pixelToGrid(x: number, y: number, gridStartX: number, gridStartY: number): GridCoord {
     const col = Math.floor((x - gridStartX) / (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing));
     const relativeY = y - gridStartY;
@@ -45,31 +50,41 @@ export function pixelToGrid(x: number, y: number, gridStartX: number, gridStartY
         row: Math.max(0, Math.min(row, GAME_CONFIG.maxRows - 1))
     };
 }
+*/
 
 /**
  * Get column center X coordinate
+ * DEPRECATED: Use getGridX() from GameScene instead
  */
+/*
 export function getColumnCenterX(col: number, gridStartX: number): number {
     return gridStartX + col * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing) + GAME_CONFIG.cellWidth / 2;
 }
+*/
 
 /**
  * Get row center Y coordinate (row 0 is at bottom)
+ * DEPRECATED: Use getGridY() from GameScene instead
  */
+/*
 export function getRowCenterY(row: number, gridStartY: number): number {
     const totalRows = GAME_CONFIG.maxRows;
     const invertedRow = totalRows - 1 - row;
     return gridStartY + invertedRow * (GAME_CONFIG.cellHeight + GAME_CONFIG.spacing) + GAME_CONFIG.cellHeight / 2;
 }
+*/
 
 /**
  * Get column index from X coordinate
+ * DEPRECATED: Grid now managed directly
  */
+/*
 export function getColumnFromX(x: number, gridStartX: number): number {
     const relativeX = x - gridStartX;
     const col = Math.floor(relativeX / (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing));
     return Math.max(0, Math.min(col, GAME_CONFIG.columns - 1));
 }
+*/
 
 /**
  * Find the lowest empty row in a column (bottom-up stacking)
