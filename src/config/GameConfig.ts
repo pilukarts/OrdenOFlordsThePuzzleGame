@@ -3,25 +3,31 @@
  * Complete configuration for the Cygnus-style hexagonal puzzle game
  */
 
+// ========================================
+// BET LIMITS CONSTANTS
+// ========================================
+export const MIN_BET = 0.20;
+export const MAX_BET = 10.0;
+
 export const GAME_CONFIG = {
     // ========================================
     // VERTICAL SLOT GRID CONFIGURATION
     // ========================================
-    columns: 7,              // 7 vertical columns
-    minRows: 4,              // Minimum 4 rows visible
-    maxRows: 8,              // Maximum 8 rows (expandable)
-    cellWidth: 70,           // Width of each cell
-    cellHeight: 70,          // Height of each cell
+    columns: 6,              // 6 vertical columns (as per requirements)
+    minRows: 4,              // Minimum 4 rows visible (start point)
+    maxRows: 8,              // Maximum 8 rows (expandable on cascades)
+    cellWidth: 80,           // Width of each cell (adjusted for 6 columns)
+    cellHeight: 80,          // Height of each cell
     spacing: 5,              // Space between cells
     startX: 300,             // Grid start X (between pillars)
     startY: 150,             // Grid start Y
-    gemRadius: 30,           // Radius for rendering
-    lordGemRadius: 32,       // Lord gem radius
+    gemRadius: 35,           // Radius for rendering hexagonal gems
+    lordGemRadius: 38,       // Lord gem radius
     
     // ========================================
     // PHYSICS CONFIGURATION
     // ========================================
-    gravity: 400,            // Vertical gravity (pixels per second squared)
+    gravity: 600,            // Vertical gravity (600 as per requirements)
     bounce: 0,               // No bounce after landing
     drag: 0,                 // No friction
     slideSpeed: 150,         // Horizontal slide speed when column full
@@ -247,6 +253,60 @@ export const GAME_CONFIG = {
         large: 3, // 7×7 cross
         line: -1, // Full row or column
         color: -2 // All of one color
+    },
+    
+    // ========================================
+    // AUTO SPIN SYSTEM (4 Betting Strategies)
+    // ========================================
+    autoSpin: {
+        enabled: false,
+        spinsRemaining: 0,
+        strategies: {
+            optimizer: {
+                name: 'Optimizer',
+                description: 'Adjusts bet based on balance (1% of balance)',
+                calculate: (balance: number) => Math.max(MIN_BET, Math.min(MAX_BET, balance * 0.01))
+            },
+            leveller: {
+                name: 'Leveller', 
+                description: 'Maintains steady bet amount',
+                calculate: (_balance: number, currentBet: number) => currentBet
+            },
+            booster: {
+                name: 'Booster',
+                description: 'Increases bet on wins, decreases on losses',
+                calculate: (_balance: number, currentBet: number, lastWin: boolean) => {
+                    if (lastWin) {
+                        return Math.min(MAX_BET, currentBet * 1.5);
+                    } else {
+                        return Math.max(MIN_BET, currentBet * 0.75);
+                    }
+                }
+            },
+            jumper: {
+                name: 'Jumper',
+                description: 'Doubles bet after loss, resets after win',
+                calculate: (_balance: number, currentBet: number, lastWin: boolean) => {
+                    if (lastWin) {
+                        return Math.max(MIN_BET, currentBet / 2);
+                    } else {
+                        return Math.min(MAX_BET, currentBet * 2);
+                    }
+                }
+            }
+        },
+        currentStrategy: 'leveller' as 'optimizer' | 'leveller' | 'booster' | 'jumper'
+    },
+    
+    // ========================================
+    // BONUS GAME SYSTEM
+    // ========================================
+    bonusGame: {
+        triggerSymbol: 'bonus_scatter',  // Special scatter symbol
+        minSymbolsRequired: 3,            // Need 3 scatters to trigger
+        freeSpinsAwarded: 10,             // Award 10 free spins
+        multiplierDuringBonus: 2.0,       // 2x multiplier during bonus
+        canRetrigger: true                // Can retrigger during bonus
     },
     
 };
