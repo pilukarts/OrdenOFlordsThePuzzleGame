@@ -61,7 +61,7 @@ export class GameScene extends Phaser.Scene {
         sessionRTP: 100
     };
     private resultDisplay: Phaser.GameObjects.Text | null = null;
-    private activeRows = 4;
+    private activeRows = 4;  // Initialize with default value
     private roundWinnings = 0;
     
     // UI elements
@@ -832,18 +832,19 @@ export class GameScene extends Phaser.Scene {
      * Get grid X position for column
      */
     private getGridX(col: number): number {
-        const totalWidth = GAME_CONFIG.columns * GAME_CONFIG.cellWidth;
-        const startX = this.gridStartX + ((GAME_CONFIG.columns * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing)) - totalWidth) / 2;
-        return startX + (col * GAME_CONFIG.cellWidth) + (GAME_CONFIG.cellWidth / 2);
+        const totalWidth = GRID_CONFIG.columns * GRID_CONFIG.cellWidth;
+        const playAreaWidth = GRID_CONFIG.playArea.right - GRID_CONFIG.playArea.left;
+        const startX = GRID_CONFIG.playArea.left + (playAreaWidth - totalWidth) / 2;
+        return startX + (col * GRID_CONFIG.cellWidth) + (GRID_CONFIG.cellWidth / 2);
     }
     
     /**
      * Get grid Y position for row (bottom-up indexing)
      */
     private getGridY(row: number): number {
-        const totalHeight = this.activeRows * GAME_CONFIG.cellHeight;
-        const startY = this.gridStartY + GAME_CONFIG.maxRows * GAME_CONFIG.cellHeight - totalHeight;
-        return startY + ((this.activeRows - 1 - row) * GAME_CONFIG.cellHeight) + (GAME_CONFIG.cellHeight / 2);
+        const totalHeight = this.activeRows * GRID_CONFIG.cellHeight;
+        const startY = GRID_CONFIG.playArea.bottom - totalHeight;
+        return startY + ((this.activeRows - 1 - row) * GRID_CONFIG.cellHeight) + (GRID_CONFIG.cellHeight / 2);
     }
     
     /**
@@ -851,9 +852,8 @@ export class GameScene extends Phaser.Scene {
      */
     private async resolveAllCascades(): Promise<void> {
         let cascadeCount = 0;
-        const MAX_CASCADES = 5;  // Limit cascades
         
-        while (cascadeCount < MAX_CASCADES) {
+        while (cascadeCount < RTP_CONFIG.maxCascades) {
             const clusters = detectAllMatches(this.grid);
             if (clusters.length === 0) break;
             
@@ -873,9 +873,9 @@ export class GameScene extends Phaser.Scene {
             // Apply gravity
             await this.applyGridGravityTween();
             
-            // Refill (max 2 rows added)
+            // Refill (max rows per cascade from config)
             if (this.activeRows < GRID_CONFIG.maxRows) {
-                this.activeRows = Math.min(this.activeRows + 2, GRID_CONFIG.maxRows);
+                this.activeRows = Math.min(this.activeRows + RTP_CONFIG.refillRowsPerCascade, GRID_CONFIG.maxRows);
             }
             await this.refillGridFromTop();
             
@@ -1983,13 +1983,7 @@ export class GameScene extends Phaser.Scene {
             return neighbors[0];
         }
         
-        // 20% chance for wild (if it exists in config)
-        if (Math.random() < 0.2 && RTP_CONFIG.gemWeights.wild) {
-            // Wild doesn't exist in gem factory yet, so use lord instead
-            const lords = ['lord_ignis', 'lord_ventus', 'lord_aqua', 'lord_terra'];
-            return lords[Math.floor(Math.random() * lords.length)];
-        }
-        
+        // Otherwise use weighted random
         return this.getWeightedRandomGemType();
     }
     
@@ -2103,8 +2097,9 @@ export class GameScene extends Phaser.Scene {
      * Update RTP statistics
      */
     private updateRTPStats(): void {
-        this.rtpTracker.sessionRTP = 
-            (this.rtpTracker.totalWins / this.rtpTracker.totalBets) * 100;
+        this.rtpTracker.sessionRTP = this.rtpTracker.totalBets > 0
+            ? (this.rtpTracker.totalWins / this.rtpTracker.totalBets) * 100
+            : 100;
         
         console.log(`[RTP] Session: ${this.rtpTracker.sessionRTP.toFixed(2)}% | Target: ${RTP_CONFIG.targetRTP}%`);
         console.log(`[Streaks] Wins: ${this.rtpTracker.consecutiveWins} | Losses: ${this.rtpTracker.consecutiveLosses}`);

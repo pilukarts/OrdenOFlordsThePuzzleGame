@@ -379,14 +379,11 @@ export const RTP_CONFIG = {
         mascot_blue: 17.5,
         mascot_yellow: 17.5,
         
-        // Lords (rare) - 20%
-        lord_ignis: 5,
-        lord_ventus: 5,
-        lord_aqua: 5,
-        lord_terra: 5,
-        
-        // Wilds (very rare) - 8%
-        wild: 8,
+        // Lords (rare) - 28%
+        lord_ignis: 7,
+        lord_ventus: 7,
+        lord_aqua: 7,
+        lord_terra: 7,
         
         // Bombs (rare) - 2%
         bomb_small: 1,
@@ -407,7 +404,11 @@ export const RTP_CONFIG = {
         mediumWin: 15,      // 15% medium (2x-5x bet)
         bigWin: 4,          // 4% big (5x-10x bet)
         megaWin: 1          // 1% mega (10x+ bet)
-    }
+    },
+    
+    // Cascade configuration
+    maxCascades: 5,             // Maximum cascades per round
+    refillRowsPerCascade: 2     // Max rows added per cascade
 };
 
 /**
