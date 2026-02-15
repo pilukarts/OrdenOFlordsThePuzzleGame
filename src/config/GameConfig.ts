@@ -5,22 +5,28 @@
 
 export const GAME_CONFIG = {
     // ========================================
-    // VERTICAL COLUMN GRID CONFIGURATION
+    // VERTICAL SLOT GRID CONFIGURATION
     // ========================================
     columns: 7,              // 7 vertical columns
-    maxRows: 25,            // Up to 25 rows high
-    columnWidth: 80,        // Width of each column
-    gemSize: 60,            // Size of gems
-    spacing: 10,            // Space between gems
-    gemRadius: 30,          // Radius for rendering
-    lordGemRadius: 32,      // Lord gem radius
+    minRows: 4,              // Minimum 4 rows visible
+    maxRows: 8,              // Maximum 8 rows (expandable)
+    cellWidth: 70,           // Width of each cell
+    cellHeight: 70,          // Height of each cell
+    spacing: 5,              // Space between cells
+    startX: 300,             // Grid start X (between pillars)
+    startY: 150,             // Grid start Y
+    gemRadius: 30,           // Radius for rendering
+    lordGemRadius: 32,       // Lord gem radius
+    gemSize: 60,             // Size of gems (deprecated, use cellWidth/cellHeight)
+    columnWidth: 75,         // Column width (deprecated, use cellWidth + spacing)
     
     // ========================================
     // PHYSICS CONFIGURATION
     // ========================================
-    gravity: 800,           // Vertical gravity only
-    bounce: 0,              // No bounce
-    drag: 0,                // No friction
+    gravity: 400,            // Vertical gravity (pixels per second squared)
+    bounce: 0,               // No bounce after landing
+    drag: 0,                 // No friction
+    slideSpeed: 150,         // Horizontal slide speed when column full
     settleVelocityThreshold: 30,
     
     // ========================================
