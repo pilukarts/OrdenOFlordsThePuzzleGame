@@ -829,7 +829,7 @@ export class GameScene extends Phaser.Scene {
         
         if (targetRow === -1) {
             // Column full, try sliding
-            const slideAmount = GAME_CONFIG.slideSpeed * 0.016; // Per frame at 60 FPS
+            const slideAmount = GAME_CONFIG.slideSpeed * GAME_CONFIG.frameTime60FPS;
             
             if (canSlideLeft(this.grid, column)) {
                 gem.x -= slideAmount;
@@ -856,7 +856,7 @@ export class GameScene extends Phaser.Scene {
             // Found empty space, check if gem reached it
             const targetY = getRowCenterY(targetRow, this.gridStartY);
             
-            if (gem.y >= targetY - 10) {
+            if (gem.y >= targetY - GAME_CONFIG.collisionTolerance) {
                 // Snap to grid position
                 this.snapGemToGrid(gem, column, targetRow);
             }

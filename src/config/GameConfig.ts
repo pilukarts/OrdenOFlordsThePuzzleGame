@@ -17,8 +17,6 @@ export const GAME_CONFIG = {
     startY: 150,             // Grid start Y
     gemRadius: 30,           // Radius for rendering
     lordGemRadius: 32,       // Lord gem radius
-    gemSize: 60,             // Size of gems (deprecated, use cellWidth/cellHeight)
-    columnWidth: 75,         // Column width (deprecated, use cellWidth + spacing)
     
     // ========================================
     // PHYSICS CONFIGURATION
@@ -28,6 +26,10 @@ export const GAME_CONFIG = {
     drag: 0,                 // No friction
     slideSpeed: 150,         // Horizontal slide speed when column full
     settleVelocityThreshold: 30,
+    
+    // Physics constants
+    frameTime60FPS: 0.016,   // Frame time for 60 FPS calculations
+    collisionTolerance: 10,  // Pixels tolerance for collision detection
     
     // ========================================
     // SPAWN RATES

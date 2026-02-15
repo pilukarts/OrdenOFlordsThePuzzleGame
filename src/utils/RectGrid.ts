@@ -200,7 +200,8 @@ export function getCellsInRadius(col: number, row: number, radius: number): Grid
 }
 
 /**
- * Get the bottom-most available row in a column (DEPRECATED: use findLowestEmptyRow)
+ * Get the bottom-most available row in a column (DEPRECATED in v1.0.0, use findLowestEmptyRow instead)
+ * Will be removed in v2.0.0
  * Returns -1 if column is full
  */
 export function getAvailableRowInColumn(
