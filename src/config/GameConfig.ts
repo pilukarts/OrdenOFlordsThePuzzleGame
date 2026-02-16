@@ -355,3 +355,80 @@ export function getComboMultiplier(cascadeLevel: number): number {
     const multipliers = GAME_CONFIG.comboMultipliers as Record<number, number>;
     return multipliers[cascadeLevel] || multipliers[6];
 }
+
+/**
+ * RTP (Return to Player) Configuration
+ * Controls game fairness and win distribution
+ */
+export const RTP_CONFIG = {
+    targetRTP: 96,          // 96% RTP (industry standard)
+    volatility: 'medium',
+    
+    // Gem probability weights (normalized at runtime to create distribution)
+    gemWeights: {
+        // Mascots (common) - 70% of distribution
+        mascot_red: 17.5,
+        mascot_green: 17.5,
+        mascot_blue: 17.5,
+        mascot_yellow: 17.5,
+        
+        // Lords (rare) - 28% of distribution
+        lord_ignis: 7,
+        lord_ventus: 7,
+        lord_aqua: 7,
+        lord_terra: 7,
+        
+        // Bombs (rare) - 2% of distribution
+        bomb_small: 1,
+        bomb_medium: 0.5,
+        bomb_large: 0.3,
+        bomb_line: 0.1,
+        bomb_color: 0.1
+    },
+    
+    // Win/loss control
+    maxConsecutiveWins: 3,      // Force loss after 3 wins
+    minConsecutiveLosses: 2,    // Force win after 2 losses
+    
+    // Win size distribution
+    winDistribution: {
+        noWin: 45,          // 45% no win
+        smallWin: 35,       // 35% small win (1x-2x bet)
+        mediumWin: 15,      // 15% medium (2x-5x bet)
+        bigWin: 4,          // 4% big (5x-10x bet)
+        megaWin: 1          // 1% mega (10x+ bet)
+    },
+    
+    // Cascade configuration
+    maxCascades: 5,             // Maximum cascades per round
+    refillRowsPerCascade: 2,    // Max rows added per cascade
+    
+    // Gem generation tuning
+    matchNeighborProbability: 0.6,      // 60% chance to match neighbor for win scenarios
+    mediumVsBigWinSplit: 0.5,           // Split between medium/big when forcing win (RTP low)
+    mediumVsBigAfterLosses: 0.7,        // Probability of medium vs big after consecutive losses
+    avoidMatchMaxAttempts: 10           // Max attempts to avoid matching when generating loss
+};
+
+/**
+ * Grid Configuration for Compact Layout
+ * Gems almost touching for Cygnus-style appearance
+ */
+export const GRID_CONFIG = {
+    columns: 6,
+    startRows: { min: 3, max: 4 },     // Random 3 or 4 rows per spin
+    maxRows: 8,
+    
+    // COMPACT spacing (gems almost touching)
+    cellWidth: 72,
+    cellHeight: 72,
+    gemSize: 68,        // Gem fills almost entire cell
+    gap: 4,             // Only 4px between gems
+    
+    playArea: {
+        left: 380,
+        right: 950,
+        top: 200,
+        bottom: 650
+    }
+};
