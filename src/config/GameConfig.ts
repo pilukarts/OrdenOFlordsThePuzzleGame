@@ -5,31 +5,22 @@
 
 export const GAME_CONFIG = {
     // ========================================
-    // VERTICAL SLOT GRID CONFIGURATION
+    // GRID-BASED SYSTEM CONFIGURATION
     // ========================================
     columns: 6,              // 6 vertical columns
-    minRows: 4,              // Minimum 4 rows visible
+    startRows: 4,            // Begin with 4 rows
     maxRows: 8,              // Maximum 8 rows (expandable)
-    cellWidth: 72,           // Width of each cell (COMPACT)
-    cellHeight: 72,          // Height of each cell (COMPACT)
-    spacing: 4,              // Space between cells (COMPACT - gems almost touching)
-    startX: 300,             // Grid start X (between pillars)
-    startY: 150,             // Grid start Y
-    gemRadius: 34,           // Radius for rendering (68px diameter for compact layout)
-    lordGemRadius: 34,       // Lord gem radius (same as regular gems for consistency)
     
-    // ========================================
-    // PHYSICS CONFIGURATION
-    // ========================================
-    gravity: 400,            // Vertical gravity (pixels per second squared)
-    bounce: 0,               // No bounce after landing
-    drag: 0,                 // No friction
-    slideSpeed: 150,         // Horizontal slide speed when column full
-    settleVelocityThreshold: 30,
+    // Play area (between pillars)
+    playArea: {
+        left: 380,           // After left pillar
+        right: 950,          // Before right pillar
+        top: 200,
+        bottom: 650
+    },
     
-    // Physics constants
-    frameTime60FPS: 0.016,   // Frame time for 60 FPS calculations
-    collisionTolerance: 10,  // Pixels tolerance for collision detection
+    gemRadius: 30,           // Radius for rendering
+    lordGemRadius: 32,       // Lord gem radius
     
     // ========================================
     // SPAWN RATES
@@ -114,11 +105,13 @@ export const GAME_CONFIG = {
     lordPowerMultiplier: 10,
     superBonusReward: 10000,
     
-    roundConfiguration: {
-        gemsPerRound: { min: 15, max: 25 },  // 15-25 gems per spin
-        gemDropDelay: 100,                    // 100ms between gems
-        settlementDelay: 2000
-    },
+    // ========================================
+    // ANIMATION TIMING
+    // ========================================
+    rowSpawnDelay: 300,      // Delay between spawning rows
+    gemSpawnDelay: 50,       // Delay between spawning gems in a row
+    gemFallDuration: 400,    // Duration of gem falling animation
+    cascadeDelay: 300,       // Delay between cascades
     
     // ========================================
     // WAVE SYSTEM

@@ -1,23 +1,11 @@
 /**
  * GameScene.tsx
- * Vertical slot puzzle game with gravity physics
+ * Grid-based puzzle game with tween animations
  */
 
 import Phaser from 'phaser';
-import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier, RTP_CONFIG, GRID_CONFIG } from '../config/GameConfig';
-import { MAX_WIN_CONFIG } from '../config/MaxWinConfig';
-import { 
-    gridToPixel, 
-    getRectNeighbors, 
-    getAvailableRowInColumn,
-    getColumnFromX,
-    getColumnCenterX,
-    getRowCenterY,
-    findLowestEmptyRow,
-    canSlideLeft,
-    canSlideRight,
-    findNearestAvailableColumn
-} from '../utils/RectGrid';
+import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
+import { MAX_WIN_CONFIG, type MaxWinLevel } from '../config/MaxWinConfig';
 import { createMascotGem, createLordGem, createBlackGem, createBombGem, getRandomGemType } from '../utils/GemFactory';
 import { 
     detectAllMatches,
@@ -39,15 +27,14 @@ import {
 export class GameScene extends Phaser.Scene {
     // Grid and gems
     private grid: (Phaser.GameObjects.Container | null)[][] = [];
-    private gridStartX: number = 0;
-    private gridStartY: number = 0;
-    private fallingGems: Phaser.GameObjects.Container[] = [];
+    private activeRows = 4;  // Current number of active rows (starts at 4, can expand to 8)
     
     // Game state
     private balance = 1000;
     private currentBet = 1.0;
     private roundInProgress = false;
     private cascadeLevel = 0;
+    private roundWinnings = 0;  // Accumulated winnings for the current round
     private lordsThisRound: string[] = [];
     private lordsActivatedThisRound = new Set<string>();
     private waveNumber = 0;
@@ -122,34 +109,22 @@ export class GameScene extends Phaser.Scene {
     create() {
         const { width, height } = this.cameras.main;
         
-        // Enable physics with gravity
-        if (this.physics && this.physics.world) {
-            this.physics.world.gravity.y = GAME_CONFIG.gravity;
-        }
-        
         // Background
         const bg = this.add.image(0, 0, 'background');
         bg.setOrigin(0, 0);
         bg.setDisplaySize(width, height);
         bg.setDepth(0);
         
-        // Frame centered (HIDDEN - only decorative columns visible)
+
         this.frameCenterX = width / 2;
         this.frameCenterY = height / 2;
         
+        // Note: We keep the frame image but it should only show pillars
         const frame = this.add.image(this.frameCenterX, this.frameCenterY, 'frame');
         frame.setOrigin(0.5, 0.5);
         frame.setScale(1);
         frame.setDepth(1);
         frame.setAlpha(0); // Hide the arch, keep only background columns
-        
-        // Calculate grid position within frame (using new cell-based config)
-        const gridWidth = GAME_CONFIG.columns * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing);
-        const gridHeight = GAME_CONFIG.maxRows * (GAME_CONFIG.cellHeight + GAME_CONFIG.spacing);
-        
-        // Use configured startX and startY, or calculate centered if not set
-        this.gridStartX = GAME_CONFIG.startX || (this.frameCenterX - gridWidth / 2);
-        this.gridStartY = GAME_CONFIG.startY || (this.frameCenterY - gridHeight / 2 + 50);
         
         // Initialize empty grid
         this.initializeGrid();
@@ -176,6 +151,38 @@ export class GameScene extends Phaser.Scene {
                 this.grid[row][col] = null;
             }
         }
+    }
+
+    // ========================================
+    // GRID HELPER METHODS
+    // ========================================
+    
+    /**
+     * Calculate X position for a grid column
+     */
+    private getGridX(col: number): number {
+        const playableWidth = GAME_CONFIG.playArea.right - GAME_CONFIG.playArea.left;
+        const cellWidth = playableWidth / GAME_CONFIG.columns;
+        return GAME_CONFIG.playArea.left + (col * cellWidth) + (cellWidth / 2);
+    }
+    
+    /**
+     * Calculate Y position for a grid row
+     * Row 0 is at bottom, higher rows are higher up
+     */
+    private getGridY(row: number): number {
+        const playableHeight = GAME_CONFIG.playArea.bottom - GAME_CONFIG.playArea.top;
+        const cellHeight = playableHeight / this.activeRows;
+        return GAME_CONFIG.playArea.bottom - (row * cellHeight) - (cellHeight / 2);
+    }
+    
+    /**
+     * Wait for a specified duration
+     */
+    private wait(ms: number): Promise<void> {
+        return new Promise(resolve => {
+            this.time.delayedCall(ms, () => resolve());
+        });
     }
 
 
@@ -441,7 +448,17 @@ export class GameScene extends Phaser.Scene {
         col: number, 
         lordType: string
     ): void {
-        const neighbors = getRectNeighbors(col, row);
+        // Simple 4-neighbor check (up, down, left, right)
+        const neighbors = [
+            { col: col - 1, row: row },
+            { col: col + 1, row: row },
+            { col: col, row: row - 1 },
+            { col: col, row: row + 1 }
+        ].filter(n => 
+            n.col >= 0 && n.col < GAME_CONFIG.columns &&
+            n.row >= 0 && n.row < GAME_CONFIG.maxRows
+        );
+        
         const lordConfig = LORD_CONFIG[lordType as keyof typeof LORD_CONFIG];
         const matchColor = lordConfig.matchColor;
         
@@ -584,7 +601,7 @@ export class GameScene extends Phaser.Scene {
         }
     }
     
-    private triggerMaxWinLevel(level: any): void {
+    private triggerMaxWinLevel(level: MaxWinLevel): void {
         const reward = level.reward * this.currentBet;
         
         // Visual effect
@@ -719,281 +736,20 @@ export class GameScene extends Phaser.Scene {
         
         this.roundInProgress = true;
         this.cascadeLevel = 0;
+        this.roundWinnings = 0;  // Reset round winnings
         this.waveNumber = 0;
         this.lordsActivatedThisRound.clear();
+        this.activeRows = GAME_CONFIG.startRows;  // Reset to 4 rows
         
         // Clear win displays
         this.winDisplays.forEach(text => text.destroy());
         this.winDisplays = [];
         
         // Update UI
-        this.updateUI('Spinning...');
+        this.updateUI('Spawning gems...');
         
-        // 3. Determine target outcome FIRST (RTP Algorithm)
-        const targetOutcome = this.determineTargetOutcome();
-        console.log(`[RTP] Target outcome: ${targetOutcome}`);
-        
-        // 4. Spawn controlled grid based on outcome (3-4 rows)
-        this.activeRows = Phaser.Math.Between(GRID_CONFIG.startRows.min, GRID_CONFIG.startRows.max);
-        await this.spawnControlledGrid(targetOutcome);
-        
-        // 5. Resolve cascades silently
-        this.roundWinnings = 0;
-        await this.resolveAllCascades();
-        
-        // 6. Update RTP and balance
-        this.rtpTracker.totalWins += this.roundWinnings;
-        this.balance += this.roundWinnings;
-        this.updateRTPStats();
-        
-        // 7. Show persistent result
-        this.showPersistentResult();
-        
-        // 8. End round
-        this.roundInProgress = false;
-        this.updateUI('Ready to Spin');
-    }
-    
-    /**
-     * Spawn controlled grid based on target outcome
-     */
-    private async spawnControlledGrid(outcome: string): Promise<void> {
-        // Clear existing grid
-        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
-            for (let col = 0; col < GAME_CONFIG.columns; col++) {
-                if (this.grid[row][col]) {
-                    this.grid[row][col]!.destroy();
-                    this.grid[row][col] = null;
-                }
-            }
-        }
-        
-        // Spawn gems row by row (bottom to top)
-        for (let row = 0; row < this.activeRows; row++) {
-            for (let col = 0; col < GAME_CONFIG.columns; col++) {
-                let gemType: string;
-                
-                if (outcome === 'loss') {
-                    gemType = this.getGemTypeAvoidingMatch(col, row);
-                } else if (outcome === 'big' || outcome === 'mega') {
-                    gemType = this.getGemTypeFavoringMatch(col, row);
-                } else {
-                    gemType = this.getWeightedRandomGemType();
-                }
-                
-                await this.spawnGemAt(col, row, gemType);
-                await this.wait(30);
-            }
-        }
-    }
-    
-    /**
-     * Spawn a gem at specific grid position with tween animation
-     */
-    private async spawnGemAt(col: number, row: number, gemType: string): Promise<void> {
-        const targetX = this.getGridX(col);
-        const targetY = this.getGridY(row);
-        
-        let gem: Phaser.GameObjects.Container;
-        
-        // Create gem based on type
-        if (gemType.startsWith('mascot_')) {
-            const color = gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow';
-            gem = createMascotGem(this, targetX, targetY - 300, color, true); // Skip animations initially
-        } else if (gemType.startsWith('lord_')) {
-            const lordType = gemType.split('_')[1] as 'ignis' | 'ventus' | 'aqua' | 'terra';
-            gem = createLordGem(this, targetX, targetY - 300, lordType, true);
-        } else if (gemType === 'black_gem') {
-            gem = createBlackGem(this, targetX, targetY - 300, true);
-        } else if (gemType.startsWith('bomb_')) {
-            const bombType = gemType.split('_')[1] as 'small' | 'medium' | 'large' | 'line' | 'color';
-            gem = createBombGem(this, targetX, targetY - 300, bombType, true);
-        } else {
-            gem = createMascotGem(this, targetX, targetY - 300, 'red', true);
-        }
-        
-        gem.setAlpha(0);
-        
-        // TWEEN animation (no physics)
-        await new Promise<void>((resolve) => {
-            this.tweens.add({
-                targets: gem,
-                y: targetY,
-                alpha: 1,
-                duration: 400,
-                ease: 'Cubic.easeOut',
-                onComplete: () => resolve()
-            });
-        });
-        
-        // Store in grid
-        this.grid[row][col] = gem;
-        gem.setData('col', col);
-        gem.setData('row', row);
-        gem.setData('settled', true);
-    }
-    
-    /**
-     * Get grid X position for column
-     */
-    private getGridX(col: number): number {
-        const totalWidth = GRID_CONFIG.columns * GRID_CONFIG.cellWidth;
-        const playAreaWidth = GRID_CONFIG.playArea.right - GRID_CONFIG.playArea.left;
-        const startX = GRID_CONFIG.playArea.left + (playAreaWidth - totalWidth) / 2;
-        return startX + (col * GRID_CONFIG.cellWidth) + (GRID_CONFIG.cellWidth / 2);
-    }
-    
-    /**
-     * Get grid Y position for row (bottom-up indexing)
-     */
-    private getGridY(row: number): number {
-        const totalHeight = this.activeRows * GRID_CONFIG.cellHeight;
-        const startY = GRID_CONFIG.playArea.bottom - totalHeight;
-        return startY + ((this.activeRows - 1 - row) * GRID_CONFIG.cellHeight) + (GRID_CONFIG.cellHeight / 2);
-    }
-    
-    /**
-     * Resolve all cascades silently (no score shown during)
-     */
-    private async resolveAllCascades(): Promise<void> {
-        let cascadeCount = 0;
-        
-        while (cascadeCount < RTP_CONFIG.maxCascades) {
-            const clusters = detectAllMatches(this.grid);
-            if (clusters.length === 0) break;
-            
-            cascadeCount++;
-            console.log(`[CASCADE] Level ${cascadeCount}: ${clusters.length} matches found`);
-            
-            // Calculate winnings (don't show yet)
-            const winAmount = this.calculateCascadeWinnings(clusters, cascadeCount);
-            this.roundWinnings += winAmount;
-            
-            // Animate victory (blink)
-            await this.animateVictorySilent(clusters);
-            
-            // Remove gems
-            await this.removeMatchedGems(clusters);
-            
-            // Apply gravity
-            await this.applyGridGravityTween();
-            
-            // Refill (max rows per cascade from config)
-            if (this.activeRows < GRID_CONFIG.maxRows) {
-                this.activeRows = Math.min(this.activeRows + RTP_CONFIG.refillRowsPerCascade, GRID_CONFIG.maxRows);
-            }
-            await this.refillGridFromTop();
-            
-            await this.wait(300);
-        }
-    }
-    
-    /**
-     * Calculate winnings for a cascade
-     */
-    private calculateCascadeWinnings(clusters: Cluster[], cascadeLevel: number): number {
-        let totalReward = 0;
-        
-        clusters.forEach(cluster => {
-            const multiplier = getMatchMultiplier(cluster.size);
-            const comboMultiplier = getComboMultiplier(cascadeLevel);
-            
-            cluster.gems.forEach(gemData => {
-                const gemType = gemData.container.getData('gemType');
-                const value = GAME_CONFIG.gemValues[gemType as keyof typeof GAME_CONFIG.gemValues] || 0;
-                totalReward += value;
-            });
-            
-            totalReward = totalReward * multiplier * comboMultiplier;
-        });
-        
-        return totalReward;
-    }
-    
-    /**
-     * Animate victory silently (no big effects)
-     */
-    private async animateVictorySilent(clusters: Cluster[]): Promise<void> {
-        const allGems = clusters.flatMap(c => c.gems);
-        
-        // Simple blink animation
-        for (let i = 0; i < 3; i++) {
-            allGems.forEach(gemData => {
-                if (gemData.container.scene) {
-                    gemData.container.setAlpha(i % 2 === 0 ? 0.3 : 1.0);
-                }
-            });
-            await this.wait(200);
-        }
-    }
-    
-    /**
-     * Remove matched gems
-     */
-    private async removeMatchedGems(clusters: Cluster[]): Promise<void> {
-        clusters.forEach(cluster => {
-            cluster.gems.forEach(gemData => {
-                if (gemData.container.scene) {
-                    gemData.container.destroy();
-                    this.grid[gemData.row][gemData.col] = null;
-                }
-            });
-        });
-        
-        await this.wait(200);
-    }
-    
-    /**
-     * Apply gravity using tweens (not physics)
-     */
-    private async applyGridGravityTween(): Promise<void> {
-        const promises: Promise<void>[] = [];
-        
-        for (let col = 0; col < GAME_CONFIG.columns; col++) {
-            let writeRow = 0;
-            
-            for (let readRow = 0; readRow < GAME_CONFIG.maxRows; readRow++) {
-                const gem = this.grid[readRow][col];
-                if (gem) {
-                    if (readRow !== writeRow) {
-                        // Move gem down
-                        this.grid[readRow][col] = null;
-                        this.grid[writeRow][col] = gem;
-                        gem.setData('row', writeRow);
-                        
-                        const targetY = this.getGridY(writeRow);
-                        promises.push(new Promise<void>((resolve) => {
-                            this.tweens.add({
-                                targets: gem,
-                                y: targetY,
-                                duration: 300,
-                                ease: 'Cubic.easeOut',
-                                onComplete: () => resolve()
-                            });
-                        }));
-                    }
-                    writeRow++;
-                }
-            }
-        }
-        
-        await Promise.all(promises);
-        await this.wait(100);
-    }
-    
-    /**
-     * Refill grid from top
-     */
-    private async refillGridFromTop(): Promise<void> {
-        for (let col = 0; col < GAME_CONFIG.columns; col++) {
-            for (let row = 0; row < this.activeRows; row++) {
-                if (!this.grid[row][col]) {
-                    const gemType = this.getWeightedRandomGemType();
-                    await this.spawnGemAt(col, row, gemType);
-                    await this.wait(30);
-                }
-            }
-        }
+        // Start the new async spin sequence
+        this.startSpin();
     }
     
     private determineRoundLords(): void {
@@ -1006,219 +762,319 @@ export class GameScene extends Phaser.Scene {
         }
     }
     
-    private dropGems(): void {
-        const numGems = Phaser.Math.Between(
-            GAME_CONFIG.roundConfiguration.gemsPerRound.min,
-            GAME_CONFIG.roundConfiguration.gemsPerRound.max
-        );
-        
-        let gemsDropped = 0;
-        
-        const dropInterval = this.time.addEvent({
-            delay: GAME_CONFIG.roundConfiguration.gemDropDelay,
-            callback: () => {
-                this.dropSingleGem();
-                gemsDropped++;
-                
-                if (gemsDropped >= numGems) {
-                    dropInterval.remove();
-                    this.time.delayedCall(GAME_CONFIG.roundConfiguration.settlementDelay, () => this.onAllGemsSettled());
-                }
-            },
-            repeat: numGems - 1
-        });
-    }
+    // ========================================
+    // GRID-BASED SPAWNING SYSTEM
+    // ========================================
     
-    private dropSingleGem(): void {
-        const gemType = getRandomGemType(this.lordsThisRound);
+    /**
+     * Main spin sequence - async
+     */
+    private async startSpin(): Promise<void> {
+        // Step 1: Spawn 4 rows (24 gems total)
+        await this.spawnInitialGrid();
         
-        // Random X position above grid
-        const gridWidth = GAME_CONFIG.columns * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing);
-        const startX = this.gridStartX + Math.random() * gridWidth;
-        const startY = this.gridStartY - 200; // Start well above grid
+        // Step 2: Resolve all cascades (silent)
+        await this.resolveAllCascades();
         
-        let gem: Phaser.GameObjects.Container;
-        
-        if (gemType.startsWith('mascot_')) {
-            const color = gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow';
-            gem = createMascotGem(this, startX, startY, color);
-        } else if (gemType.startsWith('lord_')) {
-            const lordType = gemType.split('_')[1] as 'ignis' | 'ventus' | 'aqua' | 'terra';
-            gem = createLordGem(this, startX, startY, lordType);
-        } else if (gemType === 'black_gem') {
-            gem = createBlackGem(this, startX, startY);
-        } else if (gemType.startsWith('bomb_')) {
-            const bombType = gemType.split('_')[1] as 'small' | 'medium' | 'large' | 'line' | 'color';
-            gem = createBombGem(this, startX, startY, bombType);
-        } else {
-            gem = createMascotGem(this, startX, startY, 'red');
+        // Step 3: Show final win amount (large text)
+        if (this.roundWinnings > 0) {
+            this.showFinalWinAmount(this.roundWinnings);
         }
         
-        // Mark as falling
-        gem.setData('falling', true);
-        gem.setData('settled', false);
-        
-        // Start gravity-based dropping with collision detection
-        this.dropGemWithGravity(gem);
-        
-        this.fallingGems.push(gem);
+        // End round
+        this.roundInProgress = false;
+        this.updateUI('Round Complete');
     }
     
     /**
-     * Drop gem with gravity and sliding physics
+     * Spawn initial 4 rows, one at a time
      */
-    private dropGemWithGravity(gem: Phaser.GameObjects.Container): void {
-        // Create falling tween
-        const gridBottomY = this.gridStartY + GAME_CONFIG.maxRows * (GAME_CONFIG.cellHeight + GAME_CONFIG.spacing) + 100;
+    private async spawnInitialGrid(): Promise<void> {
+        // Create 4 rows, one at a time
+        for (let row = 0; row < GAME_CONFIG.startRows; row++) {
+            await this.spawnRow(row);
+            await this.wait(GAME_CONFIG.rowSpawnDelay);
+        }
+    }
+    
+    /**
+     * Spawn 6 gems in this row
+     */
+    private async spawnRow(rowIndex: number): Promise<void> {
+        // Create 6 gems in this row
+        const spawnPromises: Promise<void>[] = [];
+        for (let col = 0; col < GAME_CONFIG.columns; col++) {
+            spawnPromises.push(this.spawnGemAt(col, rowIndex));
+            await this.wait(GAME_CONFIG.gemSpawnDelay);
+        }
+        // Wait for all gems in this row to finish animating
+        await Promise.all(spawnPromises);
+    }
+    
+    /**
+     * Spawn a gem at a specific grid position with tween animation
+     */
+    private async spawnGemAt(col: number, row: number): Promise<void> {
+        return new Promise((resolve) => {
+            const gemType = getRandomGemType(this.lordsThisRound);
+            
+            // Calculate exact grid position
+            const targetX = this.getGridX(col);
+            const targetY = this.getGridY(row);
+            
+            // Create the gem at start position (above screen)
+            let gem: Phaser.GameObjects.Container;
+            const startX = targetX;
+            const startY = targetY - 300;
+            
+            if (gemType.startsWith('mascot_')) {
+                const color = gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow';
+                gem = createMascotGem(this, startX, startY, color, true); // Skip animations during spawn
+            } else if (gemType.startsWith('lord_')) {
+                const lordType = gemType.split('_')[1] as 'ignis' | 'ventus' | 'aqua' | 'terra';
+                gem = createLordGem(this, startX, startY, lordType, true);
+            } else if (gemType === 'black_gem') {
+                gem = createBlackGem(this, startX, startY, true);
+            } else if (gemType.startsWith('bomb_')) {
+                const bombType = gemType.split('_')[1] as 'small' | 'medium' | 'large' | 'line' | 'color';
+                gem = createBombGem(this, startX, startY, bombType, true);
+            } else {
+                gem = createMascotGem(this, startX, startY, 'red', true);
+            }
+            
+            gem.setAlpha(0);
+            
+            // Animate with TWEEN (not physics)
+            this.tweens.add({
+                targets: gem,
+                y: targetY,
+                alpha: 1,
+                duration: GAME_CONFIG.gemFallDuration,
+                ease: 'Cubic.easeOut',
+                onComplete: () => {
+                    // Store in grid
+                    if (!this.grid[row]) this.grid[row] = [];
+                    this.grid[row][col] = gem;
+                    gem.setData('col', col);
+                    gem.setData('row', row);
+                    
+                    // Re-enable idle animations after landing
+                    this.reEnableGemAnimations(gem, targetY);
+                    
+                    resolve();
+                }
+            });
+        });
+    }
+    
+    // ========================================
+    // CASCADE RESOLUTION SYSTEM
+    // ========================================
+    
+    /**
+     * Resolve all cascades silently, accumulating winnings
+     */
+    private async resolveAllCascades(): Promise<void> {
+        let cascadeCount = 0;
         
-        // Add rotation while falling (NEW - as per requirements)
-        const rotationDirection = Phaser.Math.Between(-200, 200);
-        this.tweens.add({
-            targets: gem,
-            angle: rotationDirection > 0 ? 360 : -360,
-            duration: 2500,
-            ease: 'Linear',
-            repeat: 0
+        while (true) {
+            const clusters = detectAllMatches(this.grid);
+            if (clusters.length === 0) break;
+            
+            cascadeCount++;
+            
+            // Calculate winnings (DON'T SHOW)
+            const winAmount = this.calculateWinnings(clusters, cascadeCount);
+            this.roundWinnings += winAmount;  // Accumulate silently
+            
+            // Animate victory (blink)
+            await this.animateVictory(clusters);
+            
+            // Remove gems from grid
+            await this.removeGems(clusters);
+            
+            // Apply grid gravity (gems fall to fill gaps)
+            await this.applyGridGravity();
+            
+            // Refill empty spaces
+            await this.refillGrid();
+            
+            await this.wait(GAME_CONFIG.cascadeDelay);
+        }
+    }
+    
+    /**
+     * Calculate winnings for a set of matches
+     */
+    private calculateWinnings(clusters: Cluster[], cascadeLevel: number): number {
+        let totalWinnings = 0;
+        
+        clusters.forEach(cluster => {
+            const clusterSize = cluster.gems.length;
+            const multiplier = getMatchMultiplier(clusterSize);
+            const comboMultiplier = getComboMultiplier(cascadeLevel);
+            
+            cluster.gems.forEach(gemData => {
+                const gemType = gemData.container.getData('gemType');
+                const value = GAME_CONFIG.gemValues[gemType as keyof typeof GAME_CONFIG.gemValues] || 0;
+                totalWinnings += value * multiplier * comboMultiplier;
+            });
         });
         
-        const fallTween = this.tweens.add({
-            targets: gem,
-            y: gridBottomY,
-            duration: 2500,
-            ease: 'Cubic.easeIn',
-            onUpdate: () => {
-                // Check collision every frame
-                if (!gem.getData('settled')) {
-                    this.checkGemCollision(gem);
-                }
-            },
-            onComplete: () => {
-                // Safety: if gem hasn't settled by now, force settlement
-                if (!gem.getData('settled')) {
-                    const column = getColumnFromX(gem.x, this.gridStartX);
-                    const targetRow = findLowestEmptyRow(this.grid, column);
-                    if (targetRow !== -1) {
-                        this.snapGemToGrid(gem, column, targetRow);
-                    } else {
-                        // No space, destroy gem
-                        gem.destroy();
-                        const index = this.fallingGems.indexOf(gem);
-                        if (index > -1) {
-                            this.fallingGems.splice(index, 1);
-                        }
+        return totalWinnings;
+    }
+    
+    /**
+     * Remove gems from grid with explosion animations
+     */
+    private async removeGems(clusters: Cluster[]): Promise<void> {
+        const allGems = clusters.flatMap(c => c.gems);
+        
+        allGems.forEach(gemData => {
+            const { container, col, row } = gemData;
+            
+            // Remove from grid
+            this.grid[row][col] = null;
+            
+            // Explosion animation
+            this.tweens.add({
+                targets: container,
+                scale: 0,
+                alpha: 0,
+                duration: 300,
+                onComplete: () => container.destroy()
+            });
+            
+            // Particles
+            const color = container.getData('color');
+            const gemColor = GAME_CONFIG.colors[color as keyof typeof GAME_CONFIG.colors] || 0xFFFFFF;
+            createExplosion(this, container.x, container.y, gemColor, 1);
+        });
+        
+        await this.wait(400);
+    }
+    
+    /**
+     * Apply grid gravity - move gems down to fill gaps
+     */
+    private async applyGridGravity(): Promise<void> {
+        let moved = true;
+        
+        while (moved) {
+            moved = false;
+            
+            // Check each column from bottom to top
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
+                for (let row = 0; row < this.activeRows - 1; row++) {
+                    // If empty space below and gem above
+                    if (this.grid[row][col] === null && this.grid[row + 1][col] !== null) {
+                        // Move gem down
+                        const gem = this.grid[row + 1][col]!;
+                        this.grid[row][col] = gem;
+                        this.grid[row + 1][col] = null;
+                        
+                        gem.setData('row', row);
+                        
+                        // Animate drop
+                        const targetY = this.getGridY(row);
+                        this.tweens.add({
+                            targets: gem,
+                            y: targetY,
+                            duration: 200,
+                            ease: 'Bounce.easeOut'
+                        });
+                        
+                        moved = true;
                     }
                 }
             }
-        });
-        
-        gem.setData('fallTween', fallTween);
+            
+            if (moved) await this.wait(250);
+        }
     }
     
     /**
-     * Check gem collision and handle sliding
+     * Refill empty spaces in the grid
      */
-    private checkGemCollision(gem: Phaser.GameObjects.Container): void {
-        // Calculate which column gem is over
-        const column = getColumnFromX(gem.x, this.gridStartX);
-        
-        // Find lowest empty row in this column
-        const targetRow = findLowestEmptyRow(this.grid, column);
-        
-        if (targetRow === -1) {
-            // Column full, try sliding
-            const slideAmount = GAME_CONFIG.slideSpeed * GAME_CONFIG.frameTime60FPS;
+    private async refillGrid(): Promise<void> {
+        // Count missing gems per column and expand grid if needed
+        for (let col = 0; col < GAME_CONFIG.columns; col++) {
+            let emptyCount = 0;
             
-            if (canSlideLeft(this.grid, column)) {
-                gem.x -= slideAmount;
-                return;
-            }
-            
-            if (canSlideRight(this.grid, column)) {
-                gem.x += slideAmount;
-                return;
-            }
-            
-            // Can't slide, find nearest available column
-            const nearestColumn = findNearestAvailableColumn(this.grid, column);
-            if (nearestColumn !== -1) {
-                // Move towards that column
-                const targetX = getColumnCenterX(nearestColumn, this.gridStartX);
-                if (gem.x < targetX) {
-                    gem.x += slideAmount;
-                } else {
-                    gem.x -= slideAmount;
+            for (let row = 0; row < this.activeRows; row++) {
+                if (this.grid[row][col] === null) {
+                    emptyCount++;
                 }
             }
-        } else {
-            // Found empty space, check if gem reached it
-            const targetY = getRowCenterY(targetRow, this.gridStartY);
             
-            if (gem.y >= targetY - GAME_CONFIG.collisionTolerance) {
-                // Snap to grid position
-                this.snapGemToGrid(gem, column, targetRow);
+            // Expand grid if needed
+            if (emptyCount > 0 && this.activeRows < GAME_CONFIG.maxRows) {
+                const newRows = Math.min(this.activeRows + 1, GAME_CONFIG.maxRows);
+                if (newRows > this.activeRows) {
+                    this.activeRows = newRows;
+                }
             }
+            
+            // Create new gems from top to fill empty spaces
+            const spawnPromises: Promise<void>[] = [];
+            for (let i = 0; i < emptyCount; i++) {
+                // Find the highest empty row in this column
+                for (let row = this.activeRows - 1; row >= 0; row--) {
+                    if (this.grid[row][col] === null) {
+                        spawnPromises.push(this.spawnGemAt(col, row));
+                        break;  // Only spawn one gem at a time per iteration
+                    }
+                }
+            }
+            
+            await Promise.all(spawnPromises);
         }
+        
+        await this.wait(500);
     }
     
     /**
-     * Snap gem to final grid position
+     * Show final win amount with large text
      */
-    private snapGemToGrid(gem: Phaser.GameObjects.Container, col: number, row: number): void {
-        // Stop all physics
-        const fallTween = gem.getData('fallTween');
-        if (fallTween) {
-            fallTween.stop();
-        }
-        this.tweens.killTweensOf(gem);
+    private showFinalWinAmount(amount: number): void {
+        // Update balance
+        this.balance += amount;
+        this.updateUI('');
         
-        // Mark as settling
-        gem.setData('falling', false);
+        // Large text at the end
+        const text = this.add.text(
+            this.cameras.main.centerX,
+            this.cameras.main.centerY - 100,
+            `+£${amount.toFixed(2)}`,
+            {
+                fontSize: '72px',
+                color: '#FFD700',
+                stroke: '#000000',
+                strokeThickness: 8,
+                fontStyle: 'bold'
+            }
+        );
+        text.setOrigin(0.5);
+        text.setDepth(1000);
         
-        // Snap to exact grid position
-        const targetX = getColumnCenterX(col, this.gridStartX);
-        const targetY = getRowCenterY(row, this.gridStartY);
-        
+        // Dramatic animation
         this.tweens.add({
-            targets: gem,
-            x: targetX,
-            y: targetY,
-            angle: 0,  // Straighten out the gem (reset rotation)
-            duration: 100,
-            ease: 'Power2',
-            onComplete: () => {
-                // Add to grid
-                this.grid[row][col] = gem;
-                gem.setData('col', col);
-                gem.setData('row', row);
-                gem.setData('settled', true);
-                
-                // Check if it's a lord/wild
-                this.checkWildLanding(gem, row, col);
-            }
-        });
-    }
-    
-    private onAllGemsSettled(): void {
-        // With new gravity system, gems settle themselves via snapGemToGrid
-        // Just wait for all to finish settling and check for matches
-        this.fallingGems = this.fallingGems.filter(gem => {
-            const settled = gem.getData('settled');
-            if (!settled && gem.scene) {
-                // Still falling, keep in array
-                return true;
-            }
-            // Settled or destroyed, remove from array
-            return false;
+            targets: text,
+            scale: { from: 0, to: 1.5 },
+            duration: 500,
+            ease: 'Back.easeOut'
         });
         
-        // If gems still falling, check again in a moment
-        if (this.fallingGems.length > 0) {
-            this.time.delayedCall(100, () => this.onAllGemsSettled());
-            return;
-        }
-        
-        // All gems settled, check for matches
-        this.time.delayedCall(300, () => this.checkMatches());
+        // Fade out after 3 seconds
+        this.tweens.add({
+            targets: text,
+            alpha: 0,
+            y: text.y - 50,
+            scale: 2,
+            duration: 800,
+            delay: 2500,
+            onComplete: () => text.destroy()
+        });
     }
     
     // ========================================
@@ -1454,7 +1310,7 @@ export class GameScene extends Phaser.Scene {
             gem.setData('col', col);
             
             // Animate gem falling to new position
-            const targetY = getRowCenterY(targetRow, this.gridStartY);
+            const targetY = this.getGridY(targetRow);
             
             this.tweens.add({
                 targets: gem,
@@ -1491,7 +1347,7 @@ export class GameScene extends Phaser.Scene {
     
     private createAndDropNewGem(col: number, row: number): Promise<void> {
         return new Promise((resolve) => {
-            // 🐛 DEBUG: Check if position is already occupied
+            // Check if position is already occupied
             if (this.grid[row][col] !== null) {
                 console.warn(`[CASCADE] Skipping occupied cell: col=${col} row=${row}`);
                 resolve();
@@ -1500,16 +1356,12 @@ export class GameScene extends Phaser.Scene {
             
             const gemType = getRandomGemType(this.lordsThisRound);
             
-            // Calculate target position
-            const targetPixel = gridToPixel(col, row, this.gridStartX, this.gridStartY);
-            const targetX = targetPixel.x;
-            const targetY = targetPixel.y;
+            // Calculate target position using new grid methods
+            const targetX = this.getGridX(col);
+            const targetY = this.getGridY(row);
             
             // Start position: directly above the target column
-            const startY = this.gridStartY - 300;
-            
-            // 🐛 DEBUG: Log positions
-            console.log(`[CASCADE] Gem ${gemType} col=${col} row=${row} startY=${startY} targetY=${targetY} distance=${targetY - startY}`);
+            const startY = GAME_CONFIG.playArea.top - 300;
             
             // Create the gem at TARGET X position (no horizontal movement needed)
             let gem: Phaser.GameObjects.Container;
@@ -1792,18 +1644,21 @@ export class GameScene extends Phaser.Scene {
     }
     
     private async dropNewWave(): Promise<void> {
-        // Drop new gems in random columns using configured range
-        const numGems = Phaser.Math.Between(
-            GAME_CONFIG.roundConfiguration.gemsPerRound.min,
-            GAME_CONFIG.roundConfiguration.gemsPerRound.max
-        );
+        // Drop new gems in random columns - simplified for grid system
+        const numGems = 12;  // Fixed number for wave bonus
         const promises: Promise<void>[] = [];
         
         for (let i = 0; i < numGems; i++) {
             const col = Phaser.Math.Between(0, GAME_CONFIG.columns - 1);
             
-            // Find available row using utility function
-            const targetRow = getAvailableRowInColumn(this.grid, col);
+            // Find available row (first empty spot from bottom)
+            let targetRow = -1;
+            for (let row = 0; row < this.activeRows; row++) {
+                if (this.grid[row][col] === null) {
+                    targetRow = row;
+                    break;
+                }
+            }
             
             // Skip if column is full
             if (targetRow === -1) continue;
@@ -1817,12 +1672,6 @@ export class GameScene extends Phaser.Scene {
         // Wait for all gems to settle
         await Promise.all(promises);
         await this.wait(400);
-    }
-    
-    private wait(ms: number): Promise<void> {
-        return new Promise(resolve => {
-            this.time.delayedCall(ms, () => resolve());
-        });
     }
     
     private endRound(): void {
