@@ -4,7 +4,7 @@
  */
 
 import Phaser from 'phaser';
-import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
+import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier, RTP_CONFIG, GRID_CONFIG } from '../config/GameConfig';
 import { MAX_WIN_CONFIG } from '../config/MaxWinConfig';
 import { 
     gridToPixel, 
@@ -52,6 +52,21 @@ export class GameScene extends Phaser.Scene {
     private lordsActivatedThisRound = new Set<string>();
     private waveNumber = 0;
     
+    // RTP tracking system
+    private rtpTracker = {
+        totalBets: 0,
+        totalWins: 0,
+        consecutiveWins: 0,
+        consecutiveLosses: 0,
+        sessionRTP: 100
+    };
+    private resultDisplay: Phaser.GameObjects.Text | null = null;
+    private activeRows = 4;  // Initialize with default value
+    private roundWinnings = 0;
+    
+    // Cache for gem weight total (computed once)
+    private gemWeightTotal = 0;
+    
     // UI elements
     private balanceText?: Phaser.GameObjects.Text;
     private betText?: Phaser.GameObjects.Text;
@@ -73,6 +88,8 @@ export class GameScene extends Phaser.Scene {
 
     constructor() {
         super({ key: 'GameScene' });
+        // Cache gem weight total for performance
+        this.gemWeightTotal = Object.values(RTP_CONFIG.gemWeights).reduce((a, b) => a + b, 0);
     }
 
     preload() {
@@ -116,7 +133,7 @@ export class GameScene extends Phaser.Scene {
         bg.setDisplaySize(width, height);
         bg.setDepth(0);
         
-        // Frame centered
+        // Frame centered (HIDDEN - only decorative columns visible)
         this.frameCenterX = width / 2;
         this.frameCenterY = height / 2;
         
@@ -124,6 +141,7 @@ export class GameScene extends Phaser.Scene {
         frame.setOrigin(0.5, 0.5);
         frame.setScale(1);
         frame.setDepth(1);
+        frame.setAlpha(0); // Hide the arch, keep only background columns
         
         // Calculate grid position within frame (using new cell-based config)
         const gridWidth = GAME_CONFIG.columns * (GAME_CONFIG.cellWidth + GAME_CONFIG.spacing);
@@ -673,7 +691,7 @@ export class GameScene extends Phaser.Scene {
     // ROUND MANAGEMENT
     // ========================================
     
-    private startRound(): void {
+    private async startRound(): Promise<void> {
         if (this.roundInProgress) return;
         if (this.balance < this.currentBet) {
             if (this.balanceText) {
@@ -688,7 +706,17 @@ export class GameScene extends Phaser.Scene {
             return;
         }
         
+        // 1. Clear previous result display
+        if (this.resultDisplay) {
+            this.tweens.killTweensOf(this.resultDisplay);
+            this.resultDisplay.destroy();
+            this.resultDisplay = null;
+        }
+        
+        // 2. Deduct bet and update RTP tracker
         this.balance -= this.currentBet;
+        this.rtpTracker.totalBets += this.currentBet;
+        
         this.roundInProgress = true;
         this.cascadeLevel = 0;
         this.waveNumber = 0;
@@ -698,15 +726,274 @@ export class GameScene extends Phaser.Scene {
         this.winDisplays.forEach(text => text.destroy());
         this.winDisplays = [];
         
-        // Determine which Lords spawn this round
-        this.determineRoundLords();
-        this.updateLordsIndicator();
-        
         // Update UI
-        this.updateUI('Dropping gems...');
+        this.updateUI('Spinning...');
         
-        // Drop gems
-        this.dropGems();
+        // 3. Determine target outcome FIRST (RTP Algorithm)
+        const targetOutcome = this.determineTargetOutcome();
+        console.log(`[RTP] Target outcome: ${targetOutcome}`);
+        
+        // 4. Spawn controlled grid based on outcome (3-4 rows)
+        this.activeRows = Phaser.Math.Between(GRID_CONFIG.startRows.min, GRID_CONFIG.startRows.max);
+        await this.spawnControlledGrid(targetOutcome);
+        
+        // 5. Resolve cascades silently
+        this.roundWinnings = 0;
+        await this.resolveAllCascades();
+        
+        // 6. Update RTP and balance
+        this.rtpTracker.totalWins += this.roundWinnings;
+        this.balance += this.roundWinnings;
+        this.updateRTPStats();
+        
+        // 7. Show persistent result
+        this.showPersistentResult();
+        
+        // 8. End round
+        this.roundInProgress = false;
+        this.updateUI('Ready to Spin');
+    }
+    
+    /**
+     * Spawn controlled grid based on target outcome
+     */
+    private async spawnControlledGrid(outcome: string): Promise<void> {
+        // Clear existing grid
+        for (let row = 0; row < GAME_CONFIG.maxRows; row++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
+                if (this.grid[row][col]) {
+                    this.grid[row][col]!.destroy();
+                    this.grid[row][col] = null;
+                }
+            }
+        }
+        
+        // Spawn gems row by row (bottom to top)
+        for (let row = 0; row < this.activeRows; row++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
+                let gemType: string;
+                
+                if (outcome === 'loss') {
+                    gemType = this.getGemTypeAvoidingMatch(col, row);
+                } else if (outcome === 'big' || outcome === 'mega') {
+                    gemType = this.getGemTypeFavoringMatch(col, row);
+                } else {
+                    gemType = this.getWeightedRandomGemType();
+                }
+                
+                await this.spawnGemAt(col, row, gemType);
+                await this.wait(30);
+            }
+        }
+    }
+    
+    /**
+     * Spawn a gem at specific grid position with tween animation
+     */
+    private async spawnGemAt(col: number, row: number, gemType: string): Promise<void> {
+        const targetX = this.getGridX(col);
+        const targetY = this.getGridY(row);
+        
+        let gem: Phaser.GameObjects.Container;
+        
+        // Create gem based on type
+        if (gemType.startsWith('mascot_')) {
+            const color = gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow';
+            gem = createMascotGem(this, targetX, targetY - 300, color, true); // Skip animations initially
+        } else if (gemType.startsWith('lord_')) {
+            const lordType = gemType.split('_')[1] as 'ignis' | 'ventus' | 'aqua' | 'terra';
+            gem = createLordGem(this, targetX, targetY - 300, lordType, true);
+        } else if (gemType === 'black_gem') {
+            gem = createBlackGem(this, targetX, targetY - 300, true);
+        } else if (gemType.startsWith('bomb_')) {
+            const bombType = gemType.split('_')[1] as 'small' | 'medium' | 'large' | 'line' | 'color';
+            gem = createBombGem(this, targetX, targetY - 300, bombType, true);
+        } else {
+            gem = createMascotGem(this, targetX, targetY - 300, 'red', true);
+        }
+        
+        gem.setAlpha(0);
+        
+        // TWEEN animation (no physics)
+        await new Promise<void>((resolve) => {
+            this.tweens.add({
+                targets: gem,
+                y: targetY,
+                alpha: 1,
+                duration: 400,
+                ease: 'Cubic.easeOut',
+                onComplete: () => resolve()
+            });
+        });
+        
+        // Store in grid
+        this.grid[row][col] = gem;
+        gem.setData('col', col);
+        gem.setData('row', row);
+        gem.setData('settled', true);
+    }
+    
+    /**
+     * Get grid X position for column
+     */
+    private getGridX(col: number): number {
+        const totalWidth = GRID_CONFIG.columns * GRID_CONFIG.cellWidth;
+        const playAreaWidth = GRID_CONFIG.playArea.right - GRID_CONFIG.playArea.left;
+        const startX = GRID_CONFIG.playArea.left + (playAreaWidth - totalWidth) / 2;
+        return startX + (col * GRID_CONFIG.cellWidth) + (GRID_CONFIG.cellWidth / 2);
+    }
+    
+    /**
+     * Get grid Y position for row (bottom-up indexing)
+     */
+    private getGridY(row: number): number {
+        const totalHeight = this.activeRows * GRID_CONFIG.cellHeight;
+        const startY = GRID_CONFIG.playArea.bottom - totalHeight;
+        return startY + ((this.activeRows - 1 - row) * GRID_CONFIG.cellHeight) + (GRID_CONFIG.cellHeight / 2);
+    }
+    
+    /**
+     * Resolve all cascades silently (no score shown during)
+     */
+    private async resolveAllCascades(): Promise<void> {
+        let cascadeCount = 0;
+        
+        while (cascadeCount < RTP_CONFIG.maxCascades) {
+            const clusters = detectAllMatches(this.grid);
+            if (clusters.length === 0) break;
+            
+            cascadeCount++;
+            console.log(`[CASCADE] Level ${cascadeCount}: ${clusters.length} matches found`);
+            
+            // Calculate winnings (don't show yet)
+            const winAmount = this.calculateCascadeWinnings(clusters, cascadeCount);
+            this.roundWinnings += winAmount;
+            
+            // Animate victory (blink)
+            await this.animateVictorySilent(clusters);
+            
+            // Remove gems
+            await this.removeMatchedGems(clusters);
+            
+            // Apply gravity
+            await this.applyGridGravityTween();
+            
+            // Refill (max rows per cascade from config)
+            if (this.activeRows < GRID_CONFIG.maxRows) {
+                this.activeRows = Math.min(this.activeRows + RTP_CONFIG.refillRowsPerCascade, GRID_CONFIG.maxRows);
+            }
+            await this.refillGridFromTop();
+            
+            await this.wait(300);
+        }
+    }
+    
+    /**
+     * Calculate winnings for a cascade
+     */
+    private calculateCascadeWinnings(clusters: Cluster[], cascadeLevel: number): number {
+        let totalReward = 0;
+        
+        clusters.forEach(cluster => {
+            const multiplier = getMatchMultiplier(cluster.size);
+            const comboMultiplier = getComboMultiplier(cascadeLevel);
+            
+            cluster.gems.forEach(gemData => {
+                const gemType = gemData.container.getData('gemType');
+                const value = GAME_CONFIG.gemValues[gemType as keyof typeof GAME_CONFIG.gemValues] || 0;
+                totalReward += value;
+            });
+            
+            totalReward = totalReward * multiplier * comboMultiplier;
+        });
+        
+        return totalReward;
+    }
+    
+    /**
+     * Animate victory silently (no big effects)
+     */
+    private async animateVictorySilent(clusters: Cluster[]): Promise<void> {
+        const allGems = clusters.flatMap(c => c.gems);
+        
+        // Simple blink animation
+        for (let i = 0; i < 3; i++) {
+            allGems.forEach(gemData => {
+                if (gemData.container.scene) {
+                    gemData.container.setAlpha(i % 2 === 0 ? 0.3 : 1.0);
+                }
+            });
+            await this.wait(200);
+        }
+    }
+    
+    /**
+     * Remove matched gems
+     */
+    private async removeMatchedGems(clusters: Cluster[]): Promise<void> {
+        clusters.forEach(cluster => {
+            cluster.gems.forEach(gemData => {
+                if (gemData.container.scene) {
+                    gemData.container.destroy();
+                    this.grid[gemData.row][gemData.col] = null;
+                }
+            });
+        });
+        
+        await this.wait(200);
+    }
+    
+    /**
+     * Apply gravity using tweens (not physics)
+     */
+    private async applyGridGravityTween(): Promise<void> {
+        const promises: Promise<void>[] = [];
+        
+        for (let col = 0; col < GAME_CONFIG.columns; col++) {
+            let writeRow = 0;
+            
+            for (let readRow = 0; readRow < GAME_CONFIG.maxRows; readRow++) {
+                const gem = this.grid[readRow][col];
+                if (gem) {
+                    if (readRow !== writeRow) {
+                        // Move gem down
+                        this.grid[readRow][col] = null;
+                        this.grid[writeRow][col] = gem;
+                        gem.setData('row', writeRow);
+                        
+                        const targetY = this.getGridY(writeRow);
+                        promises.push(new Promise<void>((resolve) => {
+                            this.tweens.add({
+                                targets: gem,
+                                y: targetY,
+                                duration: 300,
+                                ease: 'Cubic.easeOut',
+                                onComplete: () => resolve()
+                            });
+                        }));
+                    }
+                    writeRow++;
+                }
+            }
+        }
+        
+        await Promise.all(promises);
+        await this.wait(100);
+    }
+    
+    /**
+     * Refill grid from top
+     */
+    private async refillGridFromTop(): Promise<void> {
+        for (let col = 0; col < GAME_CONFIG.columns; col++) {
+            for (let row = 0; row < this.activeRows; row++) {
+                if (!this.grid[row][col]) {
+                    const gemType = this.getWeightedRandomGemType();
+                    await this.spawnGemAt(col, row, gemType);
+                    await this.wait(30);
+                }
+            }
+        }
     }
     
     private determineRoundLords(): void {
@@ -1610,6 +1897,215 @@ export class GameScene extends Phaser.Scene {
         if (this.roundInfoText && roundInfo) {
             this.roundInfoText.setText(roundInfo);
         }
+    }
+    
+    // ========================================
+    // RTP SYSTEM METHODS
+    // ========================================
+    
+    /**
+     * Determine target outcome based on RTP tracking
+     */
+    private determineTargetOutcome(): 'loss' | 'small' | 'medium' | 'big' | 'mega' {
+        const currentRTP = this.rtpTracker.totalBets > 0 
+            ? (this.rtpTracker.totalWins / this.rtpTracker.totalBets) * 100 
+            : 100;
+        const targetRTP = RTP_CONFIG.targetRTP;
+        
+        // Force adjustments if RTP drifts too far
+        if (currentRTP > targetRTP + 5) {
+            return 'loss';  // Force loss to bring RTP down
+        }
+        
+        if (currentRTP < targetRTP - 5) {
+            // Force win to bring RTP up
+            return Math.random() < RTP_CONFIG.mediumVsBigWinSplit ? 'medium' : 'big';
+        }
+        
+        // Control consecutive streaks
+        if (this.rtpTracker.consecutiveWins >= RTP_CONFIG.maxConsecutiveWins) {
+            this.rtpTracker.consecutiveWins = 0;
+            return 'loss';
+        }
+        
+        if (this.rtpTracker.consecutiveLosses >= RTP_CONFIG.minConsecutiveLosses) {
+            this.rtpTracker.consecutiveLosses = 0;
+            return Math.random() < RTP_CONFIG.mediumVsBigAfterLosses ? 'medium' : 'big';
+        }
+        
+        // Normal distribution
+        const roll = Math.random() * 100;
+        
+        if (roll < 45) return 'loss';
+        if (roll < 80) return 'small';
+        if (roll < 95) return 'medium';
+        if (roll < 99) return 'big';
+        return 'mega';
+    }
+    
+    /**
+     * Get weighted random gem type based on RTP_CONFIG
+     */
+    private getWeightedRandomGemType(): string {
+        const weights = RTP_CONFIG.gemWeights;
+        let random = Math.random() * this.gemWeightTotal;
+        
+        for (const [type, weight] of Object.entries(weights)) {
+            random -= weight;
+            if (random <= 0) return type;
+        }
+        
+        return 'mascot_red';
+    }
+    
+    /**
+     * Get gem type avoiding matches (for loss scenarios)
+     */
+    private getGemTypeAvoidingMatch(col: number, row: number): string {
+        const neighbors = this.getNeighborTypes(col, row);
+        const avoidTypes = new Set(neighbors.map(t => this.getBaseType(t)));
+        
+        let attempts = 0;
+        let gemType: string;
+        
+        do {
+            gemType = this.getWeightedRandomGemType();
+            attempts++;
+        } while (avoidTypes.has(this.getBaseType(gemType)) && attempts < RTP_CONFIG.avoidMatchMaxAttempts);
+        
+        return gemType;
+    }
+    
+    /**
+     * Get gem type favoring matches (for win scenarios)
+     */
+    private getGemTypeFavoringMatch(col: number, row: number): string {
+        const neighbors = this.getNeighborTypes(col, row);
+        
+        // Use configured probability to match neighbor
+        if (neighbors.length > 0 && Math.random() < RTP_CONFIG.matchNeighborProbability) {
+            return neighbors[0];
+        }
+        
+        // Otherwise use weighted random
+        return this.getWeightedRandomGemType();
+    }
+    
+    /**
+     * Get neighbor gem types for matching logic
+     */
+    private getNeighborTypes(col: number, row: number): string[] {
+        const types: string[] = [];
+        
+        if (col > 0 && this.grid[row][col - 1]) {
+            const leftType = this.grid[row][col - 1]!.getData('gemType');
+            if (leftType) types.push(leftType);
+        }
+        
+        if (row > 0 && this.grid[row - 1][col]) {
+            const bottomType = this.grid[row - 1][col]!.getData('gemType');
+            if (bottomType) types.push(bottomType);
+        }
+        
+        return types;
+    }
+    
+    /**
+     * Get base type for comparison (removes mascot_/lord_ prefix)
+     */
+    private getBaseType(type: string): string {
+        if (type.includes('mascot_')) return type.split('_')[1];
+        if (type.includes('lord_')) return type.split('_')[1];
+        return type;
+    }
+    
+    /**
+     * Show persistent result with intermittent fade
+     */
+    private showPersistentResult(): void {
+        const isWin = this.roundWinnings > 0;
+        const betMultiple = (isWin && this.currentBet > 0) ? this.roundWinnings / this.currentBet : 0;
+        
+        let message: string;
+        let color: string;
+        let size: string;
+        
+        if (!isWin) {
+            message = 'NO WIN';
+            color = '#888888';
+            size = '48px';
+            this.rtpTracker.consecutiveLosses++;
+            this.rtpTracker.consecutiveWins = 0;
+        } else if (betMultiple >= 10) {
+            message = `MEGA WIN!\n£${this.roundWinnings.toFixed(2)}`;
+            color = '#FF00FF';
+            size = '96px';
+            this.rtpTracker.consecutiveWins++;
+            this.rtpTracker.consecutiveLosses = 0;
+        } else if (betMultiple >= 5) {
+            message = `BIG WIN!\n£${this.roundWinnings.toFixed(2)}`;
+            color = '#FF6B00';
+            size = '72px';
+            this.rtpTracker.consecutiveWins++;
+            this.rtpTracker.consecutiveLosses = 0;
+        } else {
+            message = `WIN £${this.roundWinnings.toFixed(2)}`;
+            color = '#FFD700';
+            size = '56px';
+            this.rtpTracker.consecutiveWins++;
+            this.rtpTracker.consecutiveLosses = 0;
+        }
+        
+        // Create persistent result with intermittent fade
+        this.resultDisplay = this.add.text(
+            this.cameras.main.centerX,
+            this.cameras.main.centerY - 50,
+            message,
+            {
+                fontSize: size,
+                color: color,
+                stroke: '#000000',
+                strokeThickness: 8,
+                fontStyle: 'bold',
+                align: 'center'
+            }
+        );
+        this.resultDisplay.setOrigin(0.5);
+        this.resultDisplay.setDepth(1000);
+        
+        // Pop-in animation
+        this.resultDisplay.setAlpha(0);
+        this.resultDisplay.setScale(0);
+        this.tweens.add({
+            targets: this.resultDisplay,
+            alpha: 1,
+            scale: 1,
+            duration: 500,
+            ease: 'Back.easeOut'
+        });
+        
+        // Intermittent fade (infinite until next spin)
+        this.tweens.add({
+            targets: this.resultDisplay,
+            alpha: { from: 1, to: 0.3 },
+            duration: 1000,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+            delay: 500
+        });
+    }
+    
+    /**
+     * Update RTP statistics
+     */
+    private updateRTPStats(): void {
+        this.rtpTracker.sessionRTP = this.rtpTracker.totalBets > 0
+            ? (this.rtpTracker.totalWins / this.rtpTracker.totalBets) * 100
+            : 100;
+        
+        console.log(`[RTP] Session: ${this.rtpTracker.sessionRTP.toFixed(2)}% | Target: ${RTP_CONFIG.targetRTP}%`);
+        console.log(`[Streaks] Wins: ${this.rtpTracker.consecutiveWins} | Losses: ${this.rtpTracker.consecutiveLosses}`);
     }
     
     update(): void {
