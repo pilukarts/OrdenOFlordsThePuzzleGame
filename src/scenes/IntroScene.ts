@@ -1,142 +1,62 @@
-import Phaser from 'phaser';
+// Import necessary modules and assets
+import { Scene } from 'phaser';
+import { GAME_VERSIONS } from '../config/gameConfig';
 
-export class IntroScene extends Phaser.Scene {
+export default class IntroScene extends Scene {
     constructor() {
         super({ key: 'IntroScene' });
     }
-    
+
+    preload() {
+        // Load assets such as images and animations
+        this.load.image('logo', 'path/to/logo.png');
+        this.load.image('starfield', 'path/to/starfield.png');
+        this.load.image('fireParticle', 'path/to/fireParticle.png');
+    }
+
     create() {
-        const { width, height } = this.cameras.main;
-        
-        // Fondo oscuro
-        this.add.rectangle(0, 0, width, height, 0x0A0A1A).setOrigin(0);
-        
-        // Estrellas animadas
-        this.createStarfield();
-        
-        // Logo ⚔️
-        const logo = this.add.text(width / 2, height / 2 - 200, '⚔️', {
-            fontSize: '120px'
+        // Create starfield background
+        this.add.image(400, 300, 'starfield');
+
+        // Display logo
+        const logo = this.add.image(400, 200, 'logo');
+        logo.setOrigin(0.5, 0.5);
+
+        // Add title text
+        this.add.text(400, 50, 'ORDEN OF LORDS', { fontSize: '32px', fill: '#FFF' }).setOrigin(0.5);
+
+        // Add subtitle text
+        this.add.text(400, 100, 'IGNIS THE BRAVE', { fontSize: '24px', fill: '#FFF' }).setOrigin(0.5);
+
+        // Create a fire particle effect
+        const fireParticles = this.add.particles('fireParticle');
+        fireParticles.createEmitter({
+            x: 400,
+            y: 300,
+            speed: { min: -100, max: 100 },
+            scale: { start: 0.5, end: 0 },
+            lifespan: 1000,
+            gravityY: 0,
+            quantity: 2,
+            frequency: 100,
         });
-        logo.setOrigin(0.5);
-        logo.setScale(0);
-        logo.setAlpha(0);
-        
-        this.tweens.add({
-            targets: logo,
-            scale: 1.2,
-            alpha: 1,
-            duration: 1500,
-            ease: 'Back.easeOut'
-        });
-        
-        // "ORDEN OF LORDS"
-        const title = this.add.text(width / 2, height / 2 - 50, 'ORDEN OF LORDS', {
-            fontSize: '72px',
-            color: '#FFD700',
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 10
-        });
-        title.setOrigin(0.5);
-        title.setAlpha(0);
-        
-        this.tweens.add({
-            targets: title,
-            alpha: 1,
-            y: height / 2 - 80,
-            duration: 800,
-            delay: 1000,
-            ease: 'Power2'
-        });
-        
-        // "IGNIS THE BRAVE"
-        const subtitle = this.add.text(width / 2, height / 2 + 20, 'IGNIS THE BRAVE', {
-            fontSize: '48px',
-            color: '#FF4500',
-            fontStyle: 'bold',
-            stroke: '#000000',
-            strokeThickness: 8
-        });
-        subtitle.setOrigin(0.5);
-        subtitle.setAlpha(0);
-        
-        this.tweens.add({
-            targets: subtitle,
-            alpha: 1,
-            duration: 800,
-            delay: 1500,
-            ease: 'Power2'
-        });
-        
-        // Badge "SEASON 1"
-        const seasonBadge = this.add.text(width / 2, 100, 'SEASON 1', {
-            fontSize: '24px',
-            color: '#FFD700',
-            fontStyle: 'bold',
-            backgroundColor: '#FF4500',
-            padding: { x: 20, y: 10 }
-        });
-        seasonBadge.setOrigin(0.5);
-        seasonBadge.setAlpha(0);
-        
-        this.tweens.add({
-            targets: seasonBadge,
-            alpha: 1,
-            duration: 500,
-            delay: 2000
-        });
-        
-        // "CLICK TO START"
-        const startText = this.add.text(width / 2, height - 100, 'CLICK TO START', {
-            fontSize: '36px',
-            color: '#FFFFFF',
-            fontStyle: 'bold'
-        });
-        startText.setOrigin(0.5);
-        startText.setAlpha(0);
-        
-        this.tweens.add({
-            targets: startText,
-            alpha: { from: 0, to: 1 },
-            duration: 800,
-            yoyo: true,
-            repeat: -1,
-            delay: 3000
-        });
-        
-        // Click para saltar
-        this.input.on('pointerdown', () => this.skipToGame());
-        
-        // Auto-skip después de 5 segundos
-        this.time.delayedCall(5000, () => this.skipToGame());
+
+        // Season badge (example, adjust as necessary)
+        this.add.text(15, 15, 'SEASON 1', { fontSize: '20px', fill: '#FF0000' });
+
+        // Input handling
+        this.input.on('pointerdown', this.startGame, this);
+
+        // Auto-start after 5 seconds
+        this.time.delayedCall(5000, this.startGame, [], this);
     }
-    
-    createStarfield() {
-        const { width, height } = this.cameras.main;
-        
-        for (let i = 0; i < 200; i++) {
-            const x = Math.random() * width;
-            const y = Math.random() * height;
-            const size = Math.random() * 3;
-            
-            const star = this.add.circle(x, y, size, 0xFFFFFF, Math.random());
-            
-            this.tweens.add({
-                targets: star,
-                alpha: { from: 0.3, to: 1 },
-                duration: 1000 + Math.random() * 2000,
-                yoyo: true,
-                repeat: -1
-            });
-        }
-    }
-    
-    skipToGame() {
-        this.cameras.main.fadeOut(500, 0, 0, 0);
-        
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-            this.scene.start('GameScene');
-        });
+
+    startGame() {
+        this.scene.start('GameScene');
     }
 }
+
+
+// Configuration options based on GAME_VERSIONS
+const gameVersion = GAME_VERSIONS.current;
+console.log(`Current Game Version: ${gameVersion}`);
