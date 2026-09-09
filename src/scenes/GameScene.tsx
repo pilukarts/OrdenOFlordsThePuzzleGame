@@ -38,6 +38,12 @@ export class GameScene extends Phaser.Scene {
     private lordsThisRound: string[] = [];
     private lordsActivatedThisRound = new Set<string>();
     private waveNumber = 0;
+    private bonusActive = false;
+    private bonusTriggered = false;
+    private bonusSpinsRemaining = 0;
+    private background?: Phaser.GameObjects.Image;
+    private bonusNightOverlay?: Phaser.GameObjects.Rectangle;
+    private bonusLabel?: Phaser.GameObjects.Text;
     
     // RTP tracking system
     private rtpTracker = {
@@ -108,10 +114,10 @@ export class GameScene extends Phaser.Scene {
         const { width, height } = this.cameras.main;
         
         // Background
-        const bg = this.add.image(0, 0, 'background');
-        bg.setOrigin(0, 0);
-        bg.setDisplaySize(width, height);
-        bg.setDepth(0);
+        this.background = this.add.image(0, 0, 'background');
+        this.background.setOrigin(0, 0);
+        this.background.setDisplaySize(width, height);
+        this.background.setDepth(0);
         
 
         this.frameCenterX = width / 2;
@@ -652,6 +658,65 @@ export class GameScene extends Phaser.Scene {
                 this.triggerMaxWinLevel(level);
             }
         }
+
+        if (this.lordsCaptured > 6 && !this.bonusTriggered) {
+            this.activateBonusMode();
+        }
+    }
+
+    private activateBonusMode(): void {
+        this.bonusTriggered = true;
+        this.bonusActive = true;
+        this.bonusSpinsRemaining = 10;
+
+        const { width, height } = this.cameras.main;
+        this.background?.setTint(0x34426f);
+
+        this.bonusNightOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x07122f, 0)
+            .setDepth(0).setBlendMode(Phaser.BlendModes.MULTIPLY);
+        this.tweens.add({ targets: this.bonusNightOverlay, alpha: 0.52, duration: 1400 });
+
+        const goldenLight = this.add.rectangle(width / 2, height / 2, width, height, 0xffb300, 0)
+            .setDepth(1).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({
+            targets: goldenLight,
+            alpha: { from: 0.05, to: 0.2 },
+            duration: 900,
+            yoyo: true,
+            repeat: 3,
+            onComplete: () => goldenLight.destroy()
+        });
+
+        createConfetti(this);
+        shakeScreen(this, 2);
+        const entrance = this.add.text(width / 2, height / 2, 'BONUS UNLOCKED!\n10 FREE SPINS', {
+            fontSize: '58px', color: '#FFD86B', fontStyle: 'bold', align: 'center',
+            stroke: '#3A1600', strokeThickness: 10
+        }).setOrigin(0.5).setDepth(1200).setScale(0.2);
+        this.tweens.add({
+            targets: entrance, scale: 1, duration: 650, ease: 'Back.easeOut',
+            yoyo: true, hold: 1400,
+            onComplete: () => entrance.destroy()
+        });
+
+        this.bonusLabel = this.add.text(width - 105, 42, 'BONUS 10/10', {
+            fontSize: '24px', color: '#FFD86B', fontStyle: 'bold',
+            stroke: '#07122F', strokeThickness: 6
+        }).setOrigin(0.5).setDepth(1100);
+        this.tweens.add({ targets: this.bonusLabel, alpha: 0.55, duration: 600, yoyo: true, repeat: -1 });
+    }
+
+    private finishBonusMode(): void {
+        this.bonusActive = false;
+        this.bonusTriggered = false;
+        this.bonusSpinsRemaining = 0;
+        this.background?.clearTint();
+        this.bonusNightOverlay?.destroy();
+        this.bonusNightOverlay = undefined;
+        this.bonusLabel?.destroy();
+        this.bonusLabel = undefined;
+        this.lordsCaptured = 0;
+        this.updateMaxWinMeter();
     }
     
     private triggerMaxWinLevel(level: MaxWinLevel): void {
@@ -761,9 +826,9 @@ export class GameScene extends Phaser.Scene {
     // ROUND MANAGEMENT
     // ========================================
     
-    private async startRound(): Promise<void> {
+    private async startRound(isBonusSpin: boolean = false): Promise<void> {
         if (this.roundInProgress) return;
-        if (this.balance < this.currentBet) {
+        if (!isBonusSpin && this.balance < this.currentBet) {
             if (this.balanceText) {
                 this.tweens.add({
                     targets: this.balanceText,
@@ -784,8 +849,10 @@ export class GameScene extends Phaser.Scene {
         }
         
         // 2. Deduct bet and update RTP tracker
-        this.balance -= this.currentBet;
-        this.rtpTracker.totalBets += this.currentBet;
+        if (!isBonusSpin) {
+            this.balance -= this.currentBet;
+            this.rtpTracker.totalBets += this.currentBet;
+        }
         
         this.roundInProgress = true;
         await this.clearBoard();
@@ -800,10 +867,10 @@ export class GameScene extends Phaser.Scene {
         this.winDisplays = [];
         
         // Update UI
-        this.updateUI('Spawning gems...');
+        this.updateUI(isBonusSpin ? `BONUS SPIN ${11 - this.bonusSpinsRemaining}/10` : 'Spawning gems...');
         
         // Start the new async spin sequence
-        this.startSpin();
+        void this.startSpin(isBonusSpin);
     }
     
     private determineRoundLords(): void {
@@ -823,7 +890,7 @@ export class GameScene extends Phaser.Scene {
     /**
      * Main spin sequence - async
      */
-    private async startSpin(): Promise<void> {
+    private async startSpin(isBonusSpin: boolean = false): Promise<void> {
         // Step 1: Spawn 4 rows (24 gems total)
         await this.spawnInitialGrid();
         
@@ -833,6 +900,19 @@ export class GameScene extends Phaser.Scene {
         // Step 3: Show final win amount (large text)
         if (this.roundWinnings > 0) {
             this.showFinalWinAmount(this.roundWinnings);
+        }
+
+        if (this.bonusActive && this.bonusSpinsRemaining > 0) {
+            if (isBonusSpin) this.bonusSpinsRemaining--;
+            this.bonusLabel?.setText(`BONUS ${this.bonusSpinsRemaining}/10`);
+            if (this.bonusSpinsRemaining > 0) {
+                this.updateUI(`Next bonus spin: ${this.bonusSpinsRemaining} left`);
+                await this.wait(1200);
+                this.roundInProgress = false;
+                void this.startRound(true);
+                return;
+            }
+            this.finishBonusMode();
         }
         
         // End round
