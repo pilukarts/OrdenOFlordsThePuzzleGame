@@ -12,37 +12,64 @@ const LORDS = [
 export default class IntroScene extends Scene {
   private started = false;
   constructor() { super({ key: 'IntroScene' }); }
+
   preload() {
+    this.load.image('intro-cover', '/assets/orden-of-lords.webp');
     this.load.image('intro-logo', `${BASE}/logo.png`);
     LORDS.forEach(([key, , , file]) => this.load.image(`intro-${key}`, `${BASE}/lords/${file}`));
   }
+
   create() {
     const { width, height } = this.scale;
-    this.cameras.main.setBackgroundColor('#070b20');
-    const logo = this.add.image(width / 2, height * 0.22, 'intro-logo').setAlpha(0);
-    logo.setScale(Math.min(0.52, width / logo.width * 0.55));
-    this.tweens.add({ targets: logo, alpha: 1, y: '+=12', duration: 900 });
-    const spacing = Math.min(170, width / 5);
+    this.cameras.main.setBackgroundColor('#030614');
+
+    const cover = this.add.image(width / 2, height / 2, 'intro-cover')
+      .setDisplaySize(width, height).setAlpha(0).setTint(0x69769d);
+    this.tweens.add({ targets: cover, alpha: 0.48, duration: 1200 });
+    this.add.rectangle(width / 2, height / 2, width, height, 0x020617, 0.48);
+
+    const aura = this.add.ellipse(width / 2, height * 0.3, Math.min(width * 0.68, 720), height * 0.42, 0xffb52e, 0.08)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: aura, alpha: 0.22, scale: 1.08, duration: 1500, yoyo: true, repeat: -1 });
+
+    const logo = this.add.image(width / 2, height * 0.28, 'intro-logo').setAlpha(0);
+    const logoScale = Math.min(Math.min(width * 0.5, 470) / logo.width, (height * 0.34) / logo.height);
+    logo.setScale(logoScale).setY(height * 0.28 - 18);
+    this.tweens.add({ targets: logo, alpha: 1, y: height * 0.28, duration: 900, ease: 'Cubic.easeOut' });
+
+    const spacing = Math.min(170, width * 0.19);
+    const portraitSize = Math.min(104, width * 0.105);
     LORDS.forEach(([key, label, color], index) => {
       const x = width / 2 + (index - 1.5) * spacing;
-      const y = height * 0.62;
-      const ring = this.add.circle(x, y, 58, 0x050816).setStrokeStyle(5, color).setScale(0);
-      const portrait = this.add.image(x, y, `intro-${key}`).setDisplaySize(104, 104).setAlpha(0);
-      const name = this.add.text(x, y + 78, label, { fontFamily: 'Georgia, serif', fontSize: '15px', color: `#${color.toString(16).padStart(6, '0')}` }).setOrigin(0.5).setAlpha(0);
-      this.tweens.add({ targets: ring, scale: 1, duration: 480, delay: 700 + index * 280, ease: 'Back.easeOut' });
-      this.tweens.add({ targets: [portrait, name], alpha: 1, duration: 500, delay: 900 + index * 280 });
-      this.tweens.add({ targets: ring, alpha: 0.55, duration: 700, delay: 1500 + index * 180, yoyo: true, repeat: -1 });
+      const y = height * 0.68;
+      const glow = this.add.circle(x, y, portraitSize * 0.61, color, 0.12).setScale(0);
+      const ring = this.add.circle(x, y, portraitSize * 0.56, 0x030716, 0.9).setStrokeStyle(5, color).setScale(0);
+      const portrait = this.add.image(x, y, `intro-${key}`).setDisplaySize(portraitSize, portraitSize).setAlpha(0);
+      const name = this.add.text(x, y + portraitSize * 0.72, label, {
+        fontFamily: 'Georgia, serif', fontSize: `${Math.max(12, portraitSize * 0.15)}px`,
+        color: `#${color.toString(16).padStart(6, '0')}`, fontStyle: 'bold',
+        stroke: '#02040c', strokeThickness: 4
+      }).setOrigin(0.5).setAlpha(0);
+      const delay = 650 + index * 220;
+      this.tweens.add({ targets: [ring, glow], scale: 1, duration: 520, delay, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: [portrait, name], alpha: 1, duration: 480, delay: delay + 160 });
+      this.tweens.add({ targets: glow, alpha: 0.32, scale: 1.12, duration: 850, delay: delay + 600, yoyo: true, repeat: -1 });
     });
-    const start = this.add.text(width / 2, height * 0.9, 'CLICK TO START', { fontSize: '18px', color: '#fff' }).setOrigin(0.5).setAlpha(0);
-    this.tweens.add({ targets: start, alpha: 1, duration: 600, delay: 2100 });
-    this.tweens.add({ targets: start, alpha: 0.35, duration: 800, delay: 2700, yoyo: true, repeat: -1 });
+
+    const start = this.add.text(width / 2, height * 0.91, 'CLICK TO START', {
+      fontFamily: 'Arial', fontSize: '19px', color: '#fff4cf', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 5
+    }).setOrigin(0.5).setAlpha(0);
+    this.tweens.add({ targets: start, alpha: 1, duration: 600, delay: 1900 });
+    this.tweens.add({ targets: start, alpha: 0.35, duration: 750, delay: 2500, yoyo: true, repeat: -1 });
     this.input.once('pointerdown', () => this.startGame());
-    this.time.delayedCall(6500, () => this.startGame());
+    this.time.delayedCall(7000, () => this.startGame());
   }
+
   private startGame() {
     if (this.started) return;
     this.started = true;
-    this.cameras.main.fadeOut(350, 0, 0, 0, (_camera: Phaser.Cameras.Scene2D.Camera, progress: number) => {
+    this.cameras.main.fadeOut(450, 3, 6, 20, (_camera: Phaser.Cameras.Scene2D.Camera, progress: number) => {
       if (progress === 1) this.scene.start('GameScene', { gameVersion: GAME_VERSIONS.current });
     });
   }
