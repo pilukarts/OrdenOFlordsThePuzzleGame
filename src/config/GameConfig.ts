@@ -256,7 +256,7 @@ export const LORD_CONFIG = {
         glowColor: 0xFF6B00,
         rimColor: 0xFFD700,
         assetKey: 'lord_ignis_face',
-        assetPath: '/OrdenOFlordsThePuzzleGame/lords/LordIgnis.png',
+        assetPath: '/OrdenOFlordsThePuzzleGame/lords/lordIgnis.png',
         matchColor: 'red',
         value: 100,
         spawnChance: 0.30,
@@ -270,7 +270,7 @@ export const LORD_CONFIG = {
         glowColor: 0x90EE90,
         rimColor: 0xFFFFFF,
         assetKey: 'lord_ventus_face',
-        assetPath: '/OrdenOFlordsThePuzzleGame/lords/dama ventus.png',
+        assetPath: '/OrdenOFlordsThePuzzleGame/lords/damaVentus.png',
         matchColor: 'green',
         value: 120,
         spawnChance: 0.30,
@@ -284,7 +284,7 @@ export const LORD_CONFIG = {
         glowColor: 0x87CEEB,
         rimColor: 0xC0C0C0,
         assetKey: 'lord_aqua_face',
-        assetPath: '/OrdenOFlordsThePuzzleGame/lords/ladyaqua.png',
+        assetPath: '/OrdenOFlordsThePuzzleGame/lords/ladyAqua.1.png',
         matchColor: 'blue',
         value: 150,
         spawnChance: 0.25,
@@ -298,7 +298,7 @@ export const LORD_CONFIG = {
         glowColor: 0xFFA500,
         rimColor: 0x8B4513,
         assetKey: 'lord_terra_face',
-        assetPath: '/OrdenOFlordsThePuzzleGame/lords/sirterra.png',
+        assetPath: '/OrdenOFlordsThePuzzleGame/lords/sirTerra.1.png',
         matchColor: 'yellow',
         value: 200,
         spawnChance: 0.25,
@@ -315,28 +315,28 @@ export const MASCOT_CONFIG = {
         color: 0xFF0000,
         value: 5,
         assetKey: 'mascot1',
-        assetPath: '/OrdenOFlordsThePuzzleGame/assets/macota1.png'
+        assetPath: '/OrdenOFlordsThePuzzleGame/mascotas/Fire.png'
     },
     green: {
         id: 'green',
         color: 0x00FF00,
         value: 8,
         assetKey: 'mascot2',
-        assetPath: '/OrdenOFlordsThePuzzleGame/assets/mascota2.png'
+        assetPath: '/OrdenOFlordsThePuzzleGame/mascotas/Ventus.png'
     },
     blue: {
         id: 'blue',
         color: 0x0000FF,
         value: 12,
         assetKey: 'mascot3',
-        assetPath: '/OrdenOFlordsThePuzzleGame/assets/mascota3.png'
+        assetPath: '/OrdenOFlordsThePuzzleGame/mascotas/Aqua.png'
     },
     yellow: {
         id: 'yellow',
         color: 0xFFFF00,
         value: 15,
         assetKey: 'mascot4',
-        assetPath: '/OrdenOFlordsThePuzzleGame/assets/mascota4.png'
+        assetPath: '/OrdenOFlordsThePuzzleGame/mascotas/Terra.png'
     }
 };
 
