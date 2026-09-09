@@ -27,7 +27,7 @@ import {
 export class GameScene extends Phaser.Scene {
     // Grid and gems
     private grid: (Phaser.GameObjects.Container | null)[][] = [];
-    private activeRows = 4;  // Current number of active rows (starts at 4, can expand to 8)
+    private activeRows = 4;  // Current number of active rows (starts at 4, can expand to 11)
     
     // Game state
     private balance = 1000;
@@ -179,7 +179,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private createGemChannels(): void {
- const laneHeight = 520;
+        const laneHeight = 600;
         const laneTop = GAME_CONFIG.playArea.bottom - laneHeight;
         for (let col = 0; col < GAME_CONFIG.columns; col++) {
             const x = this.getGridX(col);
@@ -208,7 +208,7 @@ export class GameScene extends Phaser.Scene {
      * Row 0 is at bottom, higher rows are higher up
      */
     private getGridY(row: number): number {
-        const rowSpacing = 64;
+        const rowSpacing = 54;
         return GAME_CONFIG.playArea.bottom - (row * rowSpacing) - (rowSpacing / 2);
     }
     
@@ -407,7 +407,7 @@ export class GameScene extends Phaser.Scene {
         this.maxWinProgressBar = this.add.graphics();
         
         // Counter text
-        this.maxWinText = this.add.text(0, height/2 - 40, '0/15 Lords', {
+        this.maxWinText = this.add.text(0, height/2 - 40, '0/15 Matches', {
             fontSize: '16px',
             color: '#FFFFFF',
             fontFamily: 'Arial'
@@ -449,7 +449,7 @@ export class GameScene extends Phaser.Scene {
         );
         
         // Update text
-        this.maxWinText?.setText(`${this.lordsCaptured}/${maxLords} Lords\n${currentLevel.emoji} ${currentLevel.name}`);
+        this.maxWinText?.setText(`${this.lordsCaptured}/${maxLords} Matches\n${currentLevel.emoji} ${currentLevel.name}`);
         
         // Animate if just updated
         if (this.maxWinMeter) {
@@ -622,17 +622,34 @@ export class GameScene extends Phaser.Scene {
         this.feedMaxWinMeter();
     }
     
-    private feedMaxWinMeter(): void {
-        this.lordsCaptured++;
+    private feedMaxWinMeter(amount: number = 1): void {
+        const previousTotal = this.lordsCaptured;
+        this.lordsCaptured += amount;
         this.updateMaxWinMeter();
+
+        const matchText = this.add.text(100, 365, `+${amount} MATCH${amount === 1 ? '' : 'ES'}`, {
+            fontSize: '18px',
+            color: '#66CCFF',
+            fontStyle: 'bold',
+            stroke: '#00152A',
+            strokeThickness: 4
+        }).setOrigin(0.5).setDepth(100);
+        this.tweens.add({
+            targets: matchText,
+            y: matchText.y - 45,
+            alpha: 0,
+            duration: 900,
+            ease: 'Cubic.easeOut',
+            onComplete: () => matchText.destroy()
+        });
         
         const config = MAX_WIN_CONFIG;
         
-        // Check if we reached a level
+        // Trigger every milestone crossed, including when several matches
+        // explode together in the same cascade.
         for (const level of config.levels) {
-            if (this.lordsCaptured === level.lordsRequired) {
+            if (previousTotal < level.lordsRequired && this.lordsCaptured >= level.lordsRequired) {
                 this.triggerMaxWinLevel(level);
-                break;
             }
         }
     }
@@ -878,7 +895,10 @@ export class GameScene extends Phaser.Scene {
             } else {
                 gem = createMascotGem(this, startX, startY, 'red', true);
             }
-            
+
+            // Compact size for eleven rows: each jewel remains separate and
+            // centered inside its channel.
+            gem.setScale(0.78);
             gem.setAlpha(0);
             // Reserve the cell immediately. Without this, parallel cascade
             // refills can select the same empty cell before a tween completes.
@@ -919,6 +939,7 @@ export class GameScene extends Phaser.Scene {
             if (clusters.length === 0) break;
             
             cascadeCount++;
+            this.feedMaxWinMeter(clusters.length);
             
             // Calculate winnings (DON'T SHOW)
             const winAmount = this.calculateWinnings(clusters, cascadeCount);
