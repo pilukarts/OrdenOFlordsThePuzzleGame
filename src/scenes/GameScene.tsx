@@ -123,6 +123,8 @@ export class GameScene extends Phaser.Scene {
         frame.setScale(1);
         frame.setDepth(1);
         frame.setAlpha(0); // Hide the arch, keep only background columns
+
+        this.createGemChannels();
         
         // Initialize empty grid
         this.initializeGrid();
@@ -151,6 +153,18 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
+    private createGemChannels(): void {
+ const laneHeight = 520;
+        const laneTop = GAME_CONFIG.playArea.bottom - laneHeight;
+        for (let col = 0; col < GAME_CONFIG.columns; col++) {
+            const x = this.getGridX(col);
+            const lane = this.add.rectangle(x, laneTop + laneHeight / 2, 70, laneHeight, 0x09111f, 0.24);
+            lane.setStrokeStyle(2, 0xd8b85a, 0.34).setDepth(0);
+            this.add.line(0, 0, x - 29, laneTop, x - 29, GAME_CONFIG.playArea.bottom, 0xe9cf7a, 0.22).setOrigin(0).setDepth(0);
+            this.add.line(0, 0, x + 29, laneTop, x + 29, GAME_CONFIG.playArea.bottom, 0xe9cf7a, 0.22).setOrigin(0).setDepth(0);
+        }
+    }
+
     // ========================================
     // GRID HELPER METHODS
     // ========================================
@@ -169,9 +183,8 @@ export class GameScene extends Phaser.Scene {
      * Row 0 is at bottom, higher rows are higher up
      */
     private getGridY(row: number): number {
-        const playableHeight = GAME_CONFIG.playArea.bottom - GAME_CONFIG.playArea.top;
-        const cellHeight = playableHeight / this.activeRows;
-        return GAME_CONFIG.playArea.bottom - (row * cellHeight) - (cellHeight / 2);
+        const rowSpacing = 64;
+        return GAME_CONFIG.playArea.bottom - (row * rowSpacing) - (rowSpacing / 2);
     }
     
     /**
@@ -1589,10 +1602,8 @@ export class GameScene extends Phaser.Scene {
             await this.wait(config.blinkOffTime);
         }
         
-        // Show win amount
-        if (totalWin > 0) {
-            this.addWin(totalWin, totalGems >= 10);
-        }
+        // The round total is shown once by showFinalWinAmount(). Showing and
+        // crediting each cascade here duplicated both the label and the prize.
     }
     
     private isBoardEmpty(): boolean {
