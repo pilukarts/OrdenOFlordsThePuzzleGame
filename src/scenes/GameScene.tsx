@@ -841,6 +841,12 @@ export class GameScene extends Phaser.Scene {
             }
             
             gem.setAlpha(0);
+            // Reserve the cell immediately. Without this, parallel cascade
+            // refills can select the same empty cell before a tween completes.
+            if (!this.grid[row]) this.grid[row] = [];
+            this.grid[row][col] = gem;
+            gem.setData('col', col);
+            gem.setData('row', row);
             
             // Animate with TWEEN (not physics)
             this.tweens.add({
@@ -850,12 +856,6 @@ export class GameScene extends Phaser.Scene {
                 duration: GAME_CONFIG.gemFallDuration,
                 ease: 'Cubic.easeOut',
                 onComplete: () => {
-                    // Store in grid
-                    if (!this.grid[row]) this.grid[row] = [];
-                    this.grid[row][col] = gem;
-                    gem.setData('col', col);
-                    gem.setData('row', row);
-                    
                     // Re-enable idle animations after landing
                     this.reEnableGemAnimations(gem, targetY);
                     
