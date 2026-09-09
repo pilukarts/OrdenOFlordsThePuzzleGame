@@ -22,18 +22,32 @@ function createHexagonBackground(scene: Phaser.Scene, color: number, size: numbe
         });
     }
     
-    // Create gradient effect for depth
+    // Richer jewel palette for a premium faceted-stone appearance.
     const lightColor = Phaser.Display.Color.Interpolate.ColorWithColor(
         Phaser.Display.Color.ValueToColor(color),
         Phaser.Display.Color.ValueToColor(0xFFFFFF),
         100,
-        40
+        55
+    );
+    const darkColor = Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.ValueToColor(color),
+        Phaser.Display.Color.ValueToColor(0x050509),
+        100,
+        58
     );
     
-    // Fill with gradient
+    // Dark outer silhouette gives the gem weight against detailed backgrounds.
+    hexagon.fillStyle(0x050509, 0.82);
+    hexagon.beginPath();
+    hexagon.moveTo(points[0].x * 1.08, points[0].y * 1.08);
+    for (let i = 1; i < points.length; i++) hexagon.lineTo(points[i].x * 1.08, points[i].y * 1.08);
+    hexagon.closePath();
+    hexagon.fillPath();
+
+    // Main jewel body.
     hexagon.fillGradientStyle(
-        lightColor.color, lightColor.color,
-        color, color,
+        lightColor.color, color,
+        darkColor.color, darkColor.color,
         1
     );
     
@@ -46,9 +60,19 @@ function createHexagonBackground(scene: Phaser.Scene, color: number, size: numbe
     hexagon.closePath();
     hexagon.fillPath();
     
-    // Add border for definition
-    hexagon.lineStyle(3, 0xFFFFFF, 0.4);
+    // Metallic rim and a thin inner highlight.
+    hexagon.lineStyle(4, 0xf6d77a, 0.95);
     hexagon.strokePath();
+    hexagon.lineStyle(1.5, 0xffffff, 0.72);
+    hexagon.strokePath();
+
+    // Facets: translucent triangular planes meeting at the centre.
+    hexagon.fillStyle(0xffffff, 0.12);
+    hexagon.fillTriangle(0, 0, points[0].x, points[0].y, points[1].x, points[1].y);
+    hexagon.fillTriangle(0, 0, points[1].x, points[1].y, points[2].x, points[2].y);
+    hexagon.fillStyle(0x000000, 0.18);
+    hexagon.fillTriangle(0, 0, points[3].x, points[3].y, points[4].x, points[4].y);
+    hexagon.fillTriangle(0, 0, points[4].x, points[4].y, points[5].x, points[5].y);
     
     return hexagon;
 }
@@ -125,13 +149,14 @@ export function createMascotGem(
     const radius = GAME_CONFIG.gemRadius;
     
     // Layer 1: Projected shadow (below)
-    const shadow = scene.add.ellipse(0, 5, radius * 1.7, radius * 0.5, 0x000000, 0.3);
+    const shadow = scene.add.ellipse(2, 7, radius * 1.9, radius * 0.58, 0x000000, 0.55);
     
     // Layer 2: Hexagon background (CHANGED from circle)
     const hexBg = createHexagonBackground(scene, colors3D.base, radius);
     
     // Layer 3: Inner shadow (bottom arc)
-    const innerShadow = scene.add.arc(0, radius * 0.3, radius, 180, 360, false, 0x000000, 0.3);
+    const innerShadow = scene.add.circle(0, 1, radius * 0.69, 0x060914, 0.72);
+    innerShadow.setStrokeStyle(2, colors3D.light, 0.7);
     
     // Layer 4: Specular highlight (top-left)
     const highlight = scene.add.ellipse(-radius * 0.27, -radius * 0.27, radius * 0.5, radius * 0.33, 0xFFFFFF, 0.6);
@@ -139,7 +164,7 @@ export function createMascotGem(
     
     // Layer 5: Mascot image
     const mascot = scene.add.image(0, 0, config.assetKey);
-    mascot.setDisplaySize(radius * 1.4, radius * 1.4);
+    mascot.setDisplaySize(radius * 1.25, radius * 1.25);
     
     // Sparkle for animation
     const sparkle = scene.add.graphics();
