@@ -1,62 +1,32 @@
-// Import necessary modules and assets
 import { Scene } from 'phaser';
-import { GAME_VERSIONS } from '../config/gameConfig';
+import { GAME_VERSIONS } from '../config/GameVersions';
 
 export default class IntroScene extends Scene {
-    constructor() {
-        super({ key: 'IntroScene' });
-    }
+    private hasStarted = false;
+
+    constructor() { super({ key: 'IntroScene' }); }
 
     preload() {
-        // Load assets such as images and animations
-        this.load.image('logo', 'path/to/logo.png');
-        this.load.image('starfield', 'path/to/starfield.png');
-        this.load.image('fireParticle', 'path/to/fireParticle.png');
+        this.load.image('logo', '/OrdenOFlordsThePuzzleGame/logo.png');
     }
 
     create() {
-        // Create starfield background
-        this.add.image(400, 300, 'starfield');
-
-        // Display logo
-        const logo = this.add.image(400, 200, 'logo');
-        logo.setOrigin(0.5, 0.5);
-
-        // Add title text
-        this.add.text(400, 50, 'ORDEN OF LORDS', { fontSize: '32px', fill: '#FFF' }).setOrigin(0.5);
-
-        // Add subtitle text
-        this.add.text(400, 100, 'IGNIS THE BRAVE', { fontSize: '24px', fill: '#FFF' }).setOrigin(0.5);
-
-        // Create a fire particle effect
-        const fireParticles = this.add.particles('fireParticle');
-        fireParticles.createEmitter({
-            x: 400,
-            y: 300,
-            speed: { min: -100, max: 100 },
-            scale: { start: 0.5, end: 0 },
-            lifespan: 1000,
-            gravityY: 0,
-            quantity: 2,
-            frequency: 100,
-        });
-
-        // Season badge (example, adjust as necessary)
-        this.add.text(15, 15, 'SEASON 1', { fontSize: '20px', fill: '#FF0000' });
-
-        // Input handling
-        this.input.on('pointerdown', this.startGame, this);
-
-        // Auto-start after 5 seconds
-        this.time.delayedCall(5000, this.startGame, [], this);
+        const { width, height } = this.scale;
+        this.cameras.main.setBackgroundColor('#080d26');
+        const logo = this.add.image(width / 2, height * 0.42, 'logo');
+        logo.setOrigin(0.5).setScale(Math.min(0.7, width / logo.width * 0.72));
+        this.add.text(width / 2, height * 0.13, 'ORDEN OF LORDS', { fontSize: '32px', color: '#ffffff', fontFamily: 'Georgia, serif' }).setOrigin(0.5);
+        this.add.text(width / 2, height * 0.2, 'IGNIS THE BRAVE', { fontSize: '20px', color: '#ff6b35', fontFamily: 'Georgia, serif' }).setOrigin(0.5);
+        this.add.text(18, 18, 'SEASON 1', { fontSize: '18px', color: '#ff3b30' });
+        const startText = this.add.text(width / 2, height * 0.84, 'CLICK TO START', { fontSize: '18px', color: '#ffffff' }).setOrigin(0.5);
+        this.tweens.add({ targets: startText, alpha: 0.35, duration: 800, yoyo: true, repeat: -1 });
+        this.input.once('pointerdown', () => this.startGame());
+        this.time.delayedCall(5000, () => this.startGame());
     }
 
-    startGame() {
-        this.scene.start('GameScene');
+    private startGame() {
+        if (this.hasStarted) return;
+        this.hasStarted = true;
+        this.scene.start('GameScene', { gameVersion: GAME_VERSIONS.current });
     }
 }
-
-
-// Configuration options based on GAME_VERSIONS
-const gameVersion = GAME_VERSIONS.current;
-console.log(`Current Game Version: ${gameVersion}`);
