@@ -4,7 +4,7 @@
  */
 
 import Phaser from 'phaser';
-import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
+import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, RTP_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
 import { MAX_WIN_CONFIG, type MaxWinLevel } from '../config/MaxWinConfig';
 import { createMascotGem, createLordGem, createBlackGem, createBombGem, getRandomGemType } from '../utils/GemFactory';
 import { 
@@ -48,8 +48,6 @@ export class GameScene extends Phaser.Scene {
         sessionRTP: 100
     };
     private resultDisplay: Phaser.GameObjects.Text | null = null;
-    private activeRows = 4;  // Initialize with default value
-    private roundWinnings = 0;
     
     // Cache for gem weight total (computed once)
     private gemWeightTotal = 0;
