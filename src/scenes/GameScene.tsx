@@ -153,6 +153,31 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
+    private async clearBoard(): Promise<void> {
+        const gems = this.grid.flat().filter((gem): gem is Phaser.GameObjects.Container => gem !== null);
+        if (gems.length === 0) return;
+
+        gems.forEach(gem => {
+            this.tweens.killTweensOf(gem);
+            gem.each((child: Phaser.GameObjects.GameObject) => this.tweens.killTweensOf(child));
+        });
+
+        await new Promise<void>(resolve => {
+            this.tweens.add({
+                targets: gems,
+                alpha: 0,
+                scale: 0.65,
+                duration: 180,
+                ease: 'Sine.easeIn',
+                onComplete: () => {
+                    gems.forEach(gem => gem.destroy());
+                    this.initializeGrid();
+                    resolve();
+                }
+            });
+        });
+    }
+
     private createGemChannels(): void {
  const laneHeight = 520;
         const laneTop = GAME_CONFIG.playArea.bottom - laneHeight;
@@ -746,6 +771,7 @@ export class GameScene extends Phaser.Scene {
         this.rtpTracker.totalBets += this.currentBet;
         
         this.roundInProgress = true;
+        await this.clearBoard();
         this.cascadeLevel = 0;
         this.roundWinnings = 0;  // Reset round winnings
         this.waveNumber = 0;
