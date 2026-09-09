@@ -1,7 +1,8 @@
-import { Scene } from 'phaser';
-import { GAME_VERSIONS } from '../config';
+import Phaser, { Scene } from 'phaser';
+import { GAME_VERSIONS } from '../config/GameVersions';
 
 export default class BonusScene extends Scene {
+    private bonusCounter?: Phaser.GameObjects.Text;
     constructor() {
         super({ key: 'BonusScene' });
     }
@@ -55,7 +56,7 @@ export default class BonusScene extends Scene {
         this.addAuras(startButton);
     }
 
-    addAuras(sprite) {
+    addAuras(sprite: Phaser.GameObjects.GameObject) {
         // Add aura animation logic
         this.tweens.add({
             targets: sprite,
@@ -69,6 +70,6 @@ export default class BonusScene extends Scene {
 
     startGame() {
         // Logic to start the game and transition to game scene
-        this.scene.start('GameScene', { gameVersion: GAME_VERSIONS.CURRENT });
+        this.scene.start('GameScene', { gameVersion: GAME_VERSIONS.current });
     }
 }
