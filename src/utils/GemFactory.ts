@@ -251,27 +251,8 @@ export function createLordGem(
     const face = scene.add.image(0, 0, config.assetKey);
     face.setDisplaySize(radius * 1.6, radius * 1.6);
     
-    // Create hexagonal mask for face
-    const maskShape = scene.make.graphics({ x: 0, y: 0 });
-    maskShape.fillStyle(0xffffff);
-    // Draw hexagon for mask (scaled to 90% to prevent edge artifacts)
-    const maskPoints: { x: number; y: number }[] = [];
-    for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI / 3) * i - Math.PI / 6;
-        maskPoints.push({
-            x: radius * 0.9 * Math.cos(angle),  // 0.9 scale to avoid edge bleeding
-            y: radius * 0.9 * Math.sin(angle)
-        });
-    }
-    maskShape.beginPath();
-    maskShape.moveTo(maskPoints[0].x, maskPoints[0].y);
-    for (let i = 1; i < maskPoints.length; i++) {
-        maskShape.lineTo(maskPoints[i].x, maskPoints[i].y);
-    }
-    maskShape.closePath();
-    maskShape.fillPath();
-    const mask = maskShape.createGeometryMask();
-    face.setMask(mask);
+    // Portrait PNGs already have transparent edges. A world-space geometry mask
+    // did not follow the moving container and made the faces disappear.
     
     // Crown icon (small)
     const crown = scene.add.text(0, -radius * 0.7, '👑', {
