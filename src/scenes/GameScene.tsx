@@ -933,10 +933,12 @@ export class GameScene extends Phaser.Scene {
             // Apply grid gravity (gems fall to fill gaps)
             await this.applyGridGravity();
             
-            // Refill empty spaces
-            await this.refillGrid();
+            // Refill empty spaces. Once the gems reach the top of the
+            // channels, the round ends and the player can start a new spin.
+            const reachedTop = await this.refillGrid();
             
             await this.wait(GAME_CONFIG.cascadeDelay);
+            if (reachedTop) break;
         }
     }
     
@@ -995,79 +997,61 @@ export class GameScene extends Phaser.Scene {
      * Apply grid gravity - move gems down to fill gaps
      */
     private async applyGridGravity(): Promise<void> {
-        let moved = true;
-        
-        while (moved) {
-            moved = false;
-            
-            // Check each column from bottom to top
-            for (let col = 0; col < GAME_CONFIG.columns; col++) {
-                for (let row = 0; row < this.activeRows - 1; row++) {
-                    // If empty space below and gem above
-                    if (this.grid[row][col] === null && this.grid[row + 1][col] !== null) {
-                        // Move gem down
-                        const gem = this.grid[row + 1][col]!;
-                        this.grid[row][col] = gem;
-                        this.grid[row + 1][col] = null;
-                        
-                        gem.setData('row', row);
-                        
-                        // Animate drop
-                        const targetY = this.getGridY(row);
-                        this.tweens.add({
-                            targets: gem,
-                            y: targetY,
-                            duration: 200,
-                            ease: 'Bounce.easeOut'
-                        });
-                        
-                        moved = true;
-                    }
-                }
+        const movingGems: Phaser.GameObjects.Container[] = [];
+
+        for (let col = 0; col < GAME_CONFIG.columns; col++) {
+            // Rows start at the bottom, so keeping this order compacts every
+            // surviving gem into the lowest available space in the channel.
+            const survivors: Phaser.GameObjects.Container[] = [];
+            for (let row = 0; row < this.activeRows; row++) {
+                const gem = this.grid[row][col];
+                if (gem) survivors.push(gem);
+                this.grid[row][col] = null;
             }
-            
-            if (moved) await this.wait(250);
+
+            survivors.forEach((gem, targetRow) => {
+                this.grid[targetRow][col] = gem;
+                gem.setData('col', col);
+                gem.setData('row', targetRow);
+
+                const targetY = this.getGridY(targetRow);
+                if (Math.abs(gem.y - targetY) > 1) {
+                    movingGems.push(gem);
+                    this.tweens.add({
+                        targets: gem,
+                        y: targetY,
+                        duration: 260,
+                        ease: 'Cubic.easeIn'
+                    });
+                }
+            });
         }
+
+        if (movingGems.length > 0) await this.wait(280);
     }
     
     /**
      * Refill empty spaces in the grid
      */
-    private async refillGrid(): Promise<void> {
-        // Count missing gems per column and expand grid if needed
+    private async refillGrid(): Promise<boolean> {
+        // A cascade grows the complete board by one row, never once per
+        // column. This keeps every channel aligned and prevents overlap.
+        if (this.activeRows < GAME_CONFIG.maxRows) {
+            this.activeRows++;
+        }
+
+        const spawnPromises: Promise<void>[] = [];
         for (let col = 0; col < GAME_CONFIG.columns; col++) {
-            let emptyCount = 0;
-            
             for (let row = 0; row < this.activeRows; row++) {
                 if (this.grid[row][col] === null) {
-                    emptyCount++;
+                    spawnPromises.push(this.spawnGemAt(col, row));
                 }
             }
-            
-            // Expand grid if needed
-            if (emptyCount > 0 && this.activeRows < GAME_CONFIG.maxRows) {
-                const newRows = Math.min(this.activeRows + 1, GAME_CONFIG.maxRows);
-                if (newRows > this.activeRows) {
-                    this.activeRows = newRows;
-                }
-            }
-            
-            // Create new gems from top to fill empty spaces
-            const spawnPromises: Promise<void>[] = [];
-            for (let i = 0; i < emptyCount; i++) {
-                // Find the highest empty row in this column
-                for (let row = this.activeRows - 1; row >= 0; row--) {
-                    if (this.grid[row][col] === null) {
-                        spawnPromises.push(this.spawnGemAt(col, row));
-                        break;  // Only spawn one gem at a time per iteration
-                    }
-                }
-            }
-            
-            await Promise.all(spawnPromises);
         }
-        
+
+        await Promise.all(spawnPromises);
         await this.wait(500);
+        return this.activeRows >= GAME_CONFIG.maxRows;
     }
     
     /**
