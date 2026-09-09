@@ -1,30 +1,16 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <link rel="stylesheet" href="src/styles/game.css">
-    <title>Your Game Title</title>
-    <style>
-        /* Add loading screen styles here */
-        #loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #fff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-    </style>
-</head>
-<body>
-    <div id="loading-screen">
-        <h1>Loading...</h1>
-    </div>
-    <!-- Rest of your HTML content -->
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#080d26" />
+    <meta name="description" content="Orden of Lords — a magical match puzzle game." />
+    <title>Orden of Lords — The Puzzle Game</title>
+    <link rel="stylesheet" href="/src/styles/game.css" />
+  </head>
+  <body>
+    <main id="game" aria-label="Orden of Lords game"></main>
+    <noscript>You need JavaScript enabled to play Orden of Lords.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
