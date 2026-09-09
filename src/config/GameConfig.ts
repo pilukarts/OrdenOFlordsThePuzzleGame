@@ -9,7 +9,7 @@ export const GAME_CONFIG = {
     // ========================================
     columns: 6,              // 6 vertical columns
     startRows: 4,            // Begin with 4 rows
-    maxRows: 8,              // Maximum 8 rows (expandable)
+    maxRows: 11,             // Maximum 11 rows (three extra channel positions)
     
     // Play area (between pillars)
     playArea: {
@@ -417,7 +417,7 @@ export const RTP_CONFIG = {
 export const GRID_CONFIG = {
     columns: 6,
     startRows: { min: 3, max: 4 },     // Random 3 or 4 rows per spin
-    maxRows: 8,
+    maxRows: 11,
     
     // COMPACT spacing (gems almost touching)
     cellWidth: 72,
