@@ -858,6 +858,10 @@ export class GameScene extends Phaser.Scene {
         await this.clearBoard();
         this.cascadeLevel = 0;
         this.roundWinnings = 0;  // Reset round winnings
+        // The bonus target belongs to this spin only; matches from previous
+        // spins never accumulate toward the six-match trigger.
+        this.lordsCaptured = 0;
+        this.updateMaxWinMeter();
         this.waveNumber = 0;
         this.lordsActivatedThisRound.clear();
         this.activeRows = GAME_CONFIG.startRows;  // Reset to 4 rows
@@ -1567,18 +1571,11 @@ export class GameScene extends Phaser.Scene {
     
     private reEnableGemAnimations(gem: Phaser.GameObjects.Container, baseY: number): void {
         const gemType = gem.getData('gemType');
-        
-        // Re-enable float animation
+
+        // Keep the complete jewel locked to the centre of its grid cell.
+        gem.y = baseY;
+
         if (gemType?.startsWith('mascot_')) {
-            this.tweens.add({
-                targets: gem,
-                y: baseY + GAME_CONFIG.animations.gemFloat.yOffset,
-                duration: GAME_CONFIG.animations.gemFloat.duration,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-            
             // Re-enable sparkle animation
             const sparkle = gem.getData('sparkle');
             if (sparkle) {
@@ -1593,17 +1590,7 @@ export class GameScene extends Phaser.Scene {
                 });
             }
         } else if (gemType?.startsWith('lord_')) {
-            // Lord float animation
-            this.tweens.add({
-                targets: gem,
-                y: baseY + GAME_CONFIG.animations.lordFloat.yOffset,
-                duration: GAME_CONFIG.animations.lordFloat.duration,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-            
-            // Lord rotation
+            // A tiny rotation gives life without moving the Lord out of cell.
             this.tweens.add({
                 targets: gem,
                 angle: GAME_CONFIG.animations.lordRotate.angle,
