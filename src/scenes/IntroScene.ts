@@ -20,7 +20,7 @@ export default class IntroScene extends Scene {
     const { width, height } = this.scale;
     this.cameras.main.setBackgroundColor('#070b20');
     const logo = this.add.image(width / 2, height * 0.22, 'intro-logo').setAlpha(0);
-    logo.setScale(Math.min(0.62, width / logo.width * 0.65));
+    logo.setScale(Math.min(0.52, width / logo.width * 0.55));
     this.tweens.add({ targets: logo, alpha: 1, y: '+=12', duration: 900 });
     const spacing = Math.min(170, width / 5);
     LORDS.forEach(([key, label, color], index) => {
