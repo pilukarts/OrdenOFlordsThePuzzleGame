@@ -14,6 +14,7 @@ import {
     getBombExplosionGems 
 } from '../utils/ClusterDetector';
 import type { Cluster } from '../utils/ClusterDetector';
+import { isMusicEnabled, playMusic, toggleMusic } from '../utils/MusicManager';
 import { 
     createExplosion, 
     shakeScreen, 
@@ -84,6 +85,7 @@ export class GameScene extends Phaser.Scene {
     private maxWinText?: Phaser.GameObjects.Text;
     private towerCrestGlow?: Phaser.GameObjects.Arc;
     private towerCrestRune?: Phaser.GameObjects.Text;
+    private musicButtonText?: Phaser.GameObjects.Text;
     
     // Frame bounds
     private frameCenterX = 0;
@@ -154,6 +156,8 @@ export class GameScene extends Phaser.Scene {
         
         // Create MAX WIN meter
         this.createMaxWinMeter();
+        this.createAudioControl();
+        playMusic(this, 'game_theme', 0.24);
     }
 
     // ========================================
@@ -355,6 +359,22 @@ export class GameScene extends Phaser.Scene {
         container.on('pointerdown', callback);
         
         return container;
+    }
+
+    private createAudioControl(): void {
+        const x = this.cameras.main.width - 62;
+        const y = 34;
+        const bg = this.add.rectangle(x, y, 92, 38, 0x080B10, 0.82)
+            .setStrokeStyle(2, GAME_CONFIG.colors.gold, 0.78)
+            .setDepth(1200)
+            .setInteractive({ useHandCursor: true });
+        this.musicButtonText = this.add.text(x, y, isMusicEnabled() ? '♫ MUSIC' : '♫ MUTED', {
+            fontSize: '13px', color: '#FFE078', fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(1201);
+        bg.on('pointerdown', () => {
+            const enabled = toggleMusic(this);
+            this.musicButtonText?.setText(enabled ? '♫ MUSIC' : '♫ MUTED');
+        });
     }
     
     private createLordsIndicator(): void {
@@ -777,6 +797,7 @@ export class GameScene extends Phaser.Scene {
         this.bonusActive = true;
         this.bonusSpinsRemaining = 10;
         this.setTowerCrestBonus(true);
+        playMusic(this, 'bonus_theme', 0.3);
 
         const { width, height } = this.cameras.main;
         this.background?.setTint(0x34426f);
@@ -901,6 +922,7 @@ export class GameScene extends Phaser.Scene {
 
     private showSelectedBonusLord(lordKey: LordKey): void {
         const lord = LORD_CONFIG[lordKey];
+        playMusic(this, `bonus_${lordKey}`, 0.32);
         this.bonusLordCard?.destroy();
         this.bonusLordCard = this.add.container(225, 495).setDepth(1150).setScale(0.2);
         const glow = this.add.circle(0, 0, 50, lord.glowColor, 0.25).setBlendMode(Phaser.BlendModes.ADD);
@@ -933,6 +955,7 @@ export class GameScene extends Phaser.Scene {
         this.bonusLordCard?.destroy();
         this.bonusLordCard = undefined;
         this.selectedBonusLord = undefined;
+        playMusic(this, 'game_theme', 0.24);
         this.lordsCaptured = 0;
         this.updateMaxWinMeter();
     }
