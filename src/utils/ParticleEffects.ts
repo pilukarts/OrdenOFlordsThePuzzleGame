@@ -231,8 +231,8 @@ export function createSuperBonusEffect(scene: Phaser.Scene): void {
         onComplete: () => flash.destroy()
     });
     
-    // Massive shake
-    shakeScreen(scene, 5);
+    // Short impact without making the whole board difficult to follow.
+    shakeScreen(scene, 0.8);
     
     // Coin rain
     createCoinRain(scene, centerX, centerY);
