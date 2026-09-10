@@ -48,6 +48,7 @@ export class GameScene extends Phaser.Scene {
     private bonusLabel?: Phaser.GameObjects.Text;
     private bonusPrizeTotal = 0;
     private bonusPrizeText?: Phaser.GameObjects.Text;
+    private spinWinText?: Phaser.GameObjects.Text;
     private selectedBonusLord?: LordKey;
     private bonusDice?: Phaser.GameObjects.Container;
     private bonusDiceSymbol?: Phaser.GameObjects.Text;
@@ -146,9 +147,6 @@ export class GameScene extends Phaser.Scene {
         
         // Create UI
         this.createUI();
-        
-        // Create Lords indicator
-        this.createLordsIndicator();
         
         // Create MAX WIN meter
         this.createMaxWinMeter();
@@ -297,6 +295,13 @@ export class GameScene extends Phaser.Scene {
             0x8B5CF6,
             () => this.showBetModal()
         );
+
+        // Compact score bridge between the SPIN controls and Match Tower.
+        this.spinWinText = this.add.text(panelX, 347, 'SPIN WIN  £0.00', {
+            fontSize: '17px', color: '#FFE078', fontStyle: 'bold',
+            backgroundColor: '#11141BEF', padding: { x: 13, y: 7 },
+            stroke: '#000000', strokeThickness: 3
+        }).setOrigin(0.5).setDepth(25);
 
         this.bonusPrizeText = this.add.text(this.cameras.main.width / 2, 38, '', {
             fontSize: '22px',
@@ -717,13 +722,10 @@ export class GameScene extends Phaser.Scene {
         
         const config = MAX_WIN_CONFIG;
         
-        // Trigger every milestone crossed, including when several matches
-        // explode together in the same cascade.
-        for (const level of config.levels) {
-            if (previousTotal < level.lordsRequired && this.lordsCaptured >= level.lordsRequired) {
-                this.triggerMaxWinLevel(level);
-            }
-        }
+        const crossedLevels = config.levels.filter(level =>
+            previousTotal < level.lordsRequired && this.lordsCaptured >= level.lordsRequired
+        );
+        if (crossedLevels.length > 0) this.triggerMaxWinLevels(crossedLevels);
 
         if (this.lordsCaptured > 6 && !this.bonusTriggered) {
             this.activateBonusMode();
@@ -875,8 +877,9 @@ export class GameScene extends Phaser.Scene {
         this.updateMaxWinMeter();
     }
     
-    private triggerMaxWinLevel(level: MaxWinLevel): void {
-        const reward = level.reward * this.currentBet;
+    private triggerMaxWinLevels(levels: MaxWinLevel[]): void {
+        const highestLevel = levels[levels.length - 1];
+        const reward = levels.reduce((total, level) => total + level.reward * this.currentBet, 0);
         
         // Visual effect
         createSuperBonusEffect(this);
@@ -886,10 +889,10 @@ export class GameScene extends Phaser.Scene {
         const levelText = this.add.text(
             this.frameCenterX,
             this.frameCenterY,
-            `${level.emoji} ${level.name} ACHIEVED!\n+£${reward.toFixed(2)}`,
+            `${highestLevel.emoji} TOWER BONUS\n+£${reward.toFixed(2)}`,
             {
-                fontSize: '48px',
-                color: `#${level.color.toString(16).padStart(6, '0')}`,
+                fontSize: '44px',
+                color: `#${highestLevel.color.toString(16).padStart(6, '0')}`,
                 fontStyle: 'bold',
                 align: 'center',
                 stroke: '#000000',
@@ -906,11 +909,14 @@ export class GameScene extends Phaser.Scene {
             onComplete: () => levelText.destroy()
         });
         
-        // Award reward
-        this.addWin(reward, true);
+        // Credit all crossed levels as one tidy reward and one total.
+        this.balance += reward;
+        this.bonusPrizeTotal += reward;
+        this.updateUI();
+        this.updateBonusPrizeDisplay();
         
         // Reset if MAX WIN
-        if (level.name === 'MAX WIN' && MAX_WIN_CONFIG.resetOnMaxWin) {
+        if (levels.some(level => level.name === 'MAX WIN') && MAX_WIN_CONFIG.resetOnMaxWin) {
             this.time.delayedCall(3000, () => {
                 this.lordsCaptured = 0;
                 this.updateMaxWinMeter();
@@ -1016,6 +1022,7 @@ export class GameScene extends Phaser.Scene {
         await this.clearBoard();
         this.cascadeLevel = 0;
         this.roundWinnings = 0;  // Reset round winnings
+        this.spinWinText?.setText('SPIN WIN  £0.00');
         // The bonus target belongs to this spin only; matches from previous
         // spins never accumulate toward the six-match trigger.
         this.lordsCaptured = 0;
@@ -1357,48 +1364,25 @@ export class GameScene extends Phaser.Scene {
         }
     }
     
-    /**
-     * Show final win amount with large text
-     */
+    /** Show the final result inside the unified Match Tower sidebar. */
     private showFinalWinAmount(amount: number): void {
-        // Update balance
         this.balance += amount;
         this.updateUI('');
-        
-        // Large text at the end
-        const text = this.add.text(
-            this.cameras.main.centerX,
-            this.cameras.main.centerY - 100,
-            `+£${amount.toFixed(2)}`,
-            {
-                fontSize: '72px',
-                color: '#FFD700',
-                stroke: '#000000',
-                strokeThickness: 8,
-                fontStyle: 'bold'
-            }
-        );
-        text.setOrigin(0.5);
-        text.setDepth(1000);
-        
-        // Dramatic animation
-        this.tweens.add({
-            targets: text,
-            scale: { from: 0, to: 1.5 },
-            duration: 500,
-            ease: 'Back.easeOut'
-        });
-        
-        // Fade out after 3 seconds
-        this.tweens.add({
-            targets: text,
-            alpha: 0,
-            y: text.y - 50,
-            scale: 2,
-            duration: 800,
-            delay: 2500,
-            onComplete: () => text.destroy()
-        });
+
+        this.spinWinText?.setText(`SPIN WIN  £${amount.toFixed(2)}`);
+        if (this.spinWinText) {
+            this.tweens.add({
+                targets: this.spinWinText,
+                scale: { from: 1.18, to: 1 },
+                duration: 380,
+                ease: 'Back.easeOut'
+            });
+        }
+
+        if (this.bonusActive) {
+            this.bonusPrizeTotal += amount;
+            this.updateBonusPrizeDisplay();
+        }
     }
     
     // ========================================
