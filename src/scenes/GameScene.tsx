@@ -80,6 +80,8 @@ export class GameScene extends Phaser.Scene {
     private maxWinMeter?: Phaser.GameObjects.Container;
     private maxWinProgressBar?: Phaser.GameObjects.Graphics;
     private maxWinText?: Phaser.GameObjects.Text;
+    private towerCrestGlow?: Phaser.GameObjects.Arc;
+    private towerCrestRune?: Phaser.GameObjects.Text;
     
     // Frame bounds
     private frameCenterX = 0;
@@ -241,11 +243,11 @@ export class GameScene extends Phaser.Scene {
     
     private createUI(): void {
         const panelX = 100;
-        const panelY = 125;
+        const panelY = 200;
         
         // UI background
-        const bg = this.add.rectangle(panelX, panelY, 144, 292, 0x000000, 0.72);
-        bg.setStrokeStyle(3, GAME_CONFIG.colors.gold);
+        const bg = this.add.rectangle(panelX, panelY - 5, 142, 300, 0x080B10, 0.62);
+        bg.setStrokeStyle(1.5, GAME_CONFIG.colors.gold, 0.38);
         bg.setDepth(10);
         
         const textStyle: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -297,7 +299,7 @@ export class GameScene extends Phaser.Scene {
         );
 
         // Compact score bridge between the SPIN controls and Match Tower.
-        this.spinWinText = this.add.text(panelX, 310, 'SPIN WIN  £0.00', {
+        this.spinWinText = this.add.text(panelX, 370, 'SPIN WIN  £0.00', {
             fontSize: '14px', color: '#FFE078', fontStyle: 'bold',
             backgroundColor: '#11141BEF', padding: { x: 8, y: 6 },
             stroke: '#000000', strokeThickness: 3
@@ -327,14 +329,16 @@ export class GameScene extends Phaser.Scene {
         const container = this.add.container(x, y);
         
         const bg = this.add.graphics();
-        bg.fillStyle(color, 1);
+        bg.fillGradientStyle(0x3D4147, 0x292D32, 0x171A1E, 0x22262B, 1);
         bg.fillRoundedRect(-width/2, -height/2, width, height, 15);
-        bg.lineStyle(3, 0xFFFFFF, 0.8);
+        bg.lineStyle(3, color, 0.95);
         bg.strokeRoundedRect(-width/2, -height/2, width, height, 15);
+        bg.lineStyle(1, 0xFFFFFF, 0.22);
+        bg.strokeRoundedRect(-width/2 + 5, -height/2 + 5, width - 10, height - 10, 11);
         
         const buttonText = this.add.text(0, 0, text, {
-            fontSize: '20px',
-            color: '#000000',
+            fontSize: width <= 130 ? '16px' : '20px',
+            color: `#${color.toString(16).padStart(6, '0')}`,
             fontFamily: 'Arial',
             fontStyle: 'bold'
         }).setOrigin(0.5);
@@ -417,7 +421,7 @@ export class GameScene extends Phaser.Scene {
         const { width, height } = config.meterSize;
         
         this.maxWinMeter = this.add.container(x, y);
-        this.maxWinMeter.setDepth(20);
+        this.maxWinMeter.setDepth(5);
         
         // Ancient ruined tower surrounding the match-energy slots.
         const ruinFrame = this.add.graphics();
@@ -427,8 +431,9 @@ export class GameScene extends Phaser.Scene {
         ruinFrame.strokeRoundedRect(-width / 2 + 13, -height / 2 + 32, width - 26, height - 66, 8);
 
         const stoneColors = [0x59584f, 0x45463f, 0x69675b, 0x3b3e39];
-        const stoneStep = (height - 88) / 9;
-        for (let index = 0; index < 9; index++) {
+        const stoneCount = 15;
+        const stoneStep = (height - 88) / stoneCount;
+        for (let index = 0; index < stoneCount; index++) {
             const stoneY = -height / 2 + 42 + index * stoneStep;
             const offset = index % 2 === 0 ? 0 : 3;
             ruinFrame.fillStyle(stoneColors[index % stoneColors.length], 1);
@@ -452,17 +457,19 @@ export class GameScene extends Phaser.Scene {
         ruinFrame.lineTo(-width / 2 + 8, -height / 2 + 145);
         ruinFrame.strokePath();
 
-        const crestGlow = this.add.circle(0, -height / 2 + 7, 22, 0xFFD45A, 0.16)
+        const crestGlow = this.add.circle(0, -height / 2 + 7, 22, 0xFFD45A, 0.12)
             .setBlendMode(Phaser.BlendModes.ADD);
         const crestStone = this.add.circle(0, -height / 2 + 7, 16, 0x4F5049, 1)
             .setStrokeStyle(3, 0xD6B550, 0.9);
         const crestRune = this.add.text(0, -height / 2 + 6, '✦', {
             fontSize: '18px', color: '#FFE48A', fontStyle: 'bold'
         }).setOrigin(0.5);
-        this.tweens.add({ targets: crestGlow, alpha: 0.4, scale: 1.2, duration: 850, yoyo: true, repeat: -1 });
+        this.towerCrestGlow = crestGlow;
+        this.towerCrestRune = crestRune;
+        this.setTowerCrestBonus(false);
         
         // Title
-        const title = this.add.text(0, -height/2 + 46, 'MATCH TOWER', {
+        const title = this.add.text(0, -height/2 + 370, 'MATCH TOWER', {
             fontSize: '16px',
             color: '#FFD700',
             fontFamily: 'Arial',
@@ -470,14 +477,17 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0.5);
         
         // Progress bar background
-        const barBg = this.add.rectangle(0, 0, width - 48, height - 100, 0x10141B, 0.94);
+        const meterY = 175;
+        const meterHeight = 205;
+        const barBg = this.add.rectangle(0, meterY, width - 58, meterHeight, 0x10141B, 0.94);
         barBg.setStrokeStyle(2, 0xC9A84C, 0.45);
         
         // Progress bar fill (initially empty)
         this.maxWinProgressBar = this.add.graphics();
+        this.maxWinProgressBar.setY(meterY);
         
         // Counter text
-        this.maxWinText = this.add.text(0, height/2 - 40, '0/15 Matches', {
+        this.maxWinText = this.add.text(0, height/2 - 24, '0/15 Matches', {
             fontSize: '16px',
             color: '#FFFFFF',
             fontFamily: 'Arial'
@@ -504,11 +514,11 @@ export class GameScene extends Phaser.Scene {
         
         // Update progress bar
         const { width, height } = config.meterSize;
-        const barHeight = height - 100;
+        const barHeight = 205;
         const blockCount = maxLords;
         const blockGap = 4;
         const blockHeight = (barHeight - blockGap * (blockCount - 1)) / blockCount;
-        const blockWidth = width - 56;
+        const blockWidth = width - 66;
         const litBlocks = Math.min(this.lordsCaptured, blockCount);
 
         this.maxWinProgressBar.clear();
@@ -536,6 +546,34 @@ export class GameScene extends Phaser.Scene {
                 duration: 300,
                 yoyo: true,
                 ease: 'Sine.easeInOut'
+            });
+        }
+    }
+
+    private setTowerCrestBonus(active: boolean): void {
+        if (!this.towerCrestGlow || !this.towerCrestRune) return;
+        this.tweens.killTweensOf(this.towerCrestGlow);
+        this.tweens.killTweensOf(this.towerCrestRune);
+        this.towerCrestGlow.setScale(1);
+        this.towerCrestRune.setScale(1);
+
+        if (active) {
+            this.towerCrestGlow.setAlpha(0.45);
+            this.towerCrestRune.setColor('#FFFFFF');
+            this.tweens.add({
+                targets: this.towerCrestGlow, alpha: 0.95, scale: 1.65,
+                duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+            });
+            this.tweens.add({
+                targets: this.towerCrestRune, scale: 1.28,
+                duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+            });
+        } else {
+            this.towerCrestGlow.setAlpha(0.12);
+            this.towerCrestRune.setColor('#FFE48A');
+            this.tweens.add({
+                targets: this.towerCrestGlow, alpha: 0.28, scale: 1.12,
+                duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
             });
         }
     }
@@ -736,6 +774,7 @@ export class GameScene extends Phaser.Scene {
         this.bonusTriggered = true;
         this.bonusActive = true;
         this.bonusSpinsRemaining = 10;
+        this.setTowerCrestBonus(true);
 
         const { width, height } = this.cameras.main;
         this.background?.setTint(0x34426f);
@@ -863,6 +902,7 @@ export class GameScene extends Phaser.Scene {
         this.bonusActive = false;
         this.bonusTriggered = false;
         this.bonusSpinsRemaining = 0;
+        this.setTowerCrestBonus(false);
         this.background?.clearTint();
         this.bonusNightOverlay?.destroy();
         this.bonusNightOverlay = undefined;
