@@ -41,6 +41,8 @@ export const GAME_CONFIG = {
     
     lordSpawnChanceIfEnabled: 0.05,
     blackGemRate: 0.02,
+    naturalMatchRerollChance: 0.55, // Moderately reduces easy automatic matches
+    naturalMatchRerollAttempts: 2,
     
     bombRates: {
         small: 0.03,
