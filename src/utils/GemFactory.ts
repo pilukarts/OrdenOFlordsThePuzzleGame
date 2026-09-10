@@ -166,12 +166,10 @@ export function createMascotGem(
     const mascot = scene.add.image(0, 0, config.assetKey);
     mascot.setDisplaySize(radius * 1.25, radius * 1.25);
     
-    // Sparkle for animation
-    const sparkle = scene.add.graphics();
-    sparkle.lineStyle(2, 0xFFFFFF, 0.8);
-    sparkle.lineBetween(-radius * 0.5, 0, radius * 0.5, 0);
-    sparkle.lineBetween(0, -radius * 0.5, 0, radius * 0.5);
-    sparkle.setAlpha(0);
+    // Small polished glint. The previous crossed lines looked like an
+    // unfinished X laid over the character artwork.
+    const sparkle = scene.add.circle(-radius * 0.42, -radius * 0.4, radius * 0.09, 0xFFFFFF, 0)
+        .setStrokeStyle(1, 0xFFF4C2, 0.8);
     
     container.add([shadow, hexBg, innerShadow, highlight, mascot, sparkle]);
     container.setSize(radius * 2, radius * 2);
@@ -216,7 +214,6 @@ export function createMascotGem(
         scene.tweens.add({
             targets: sparkle,
             alpha: { from: 0, to: 1 },
-            angle: 180,
             duration: GAME_CONFIG.animations.sparkle.duration,
             yoyo: true,
             repeat: -1,
