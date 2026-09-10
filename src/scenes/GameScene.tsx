@@ -50,6 +50,8 @@ export class GameScene extends Phaser.Scene {
     private bonusPrizeText?: Phaser.GameObjects.Text;
     private spinWinText?: Phaser.GameObjects.Text;
     private selectedBonusLord?: LordKey;
+    private bonusLordBag: LordKey[] = [];
+    private lastBonusLord?: LordKey;
     private bonusDice?: Phaser.GameObjects.Container;
     private bonusDiceSymbol?: Phaser.GameObjects.Text;
     private bonusLordCard?: Phaser.GameObjects.Container;
@@ -866,8 +868,7 @@ export class GameScene extends Phaser.Scene {
                 this.bonusDiceSymbol?.setText(faces[index]);
             },
             onComplete: () => {
-                const lordKeys = Object.keys(LORD_CONFIG) as LordKey[];
-                this.selectedBonusLord = Phaser.Utils.Array.GetRandom(lordKeys);
+                this.selectedBonusLord = this.drawBonusLord();
                 this.showSelectedBonusLord(this.selectedBonusLord);
                 this.bonusDice?.destroy();
                 this.bonusDice = undefined;
@@ -877,6 +878,25 @@ export class GameScene extends Phaser.Scene {
                 });
             }
         });
+    }
+
+    private drawBonusLord(): LordKey {
+        if (this.bonusLordBag.length === 0) {
+            this.bonusLordBag = Phaser.Utils.Array.Shuffle(
+                Object.keys(LORD_CONFIG) as LordKey[]
+            );
+
+            // Evita que el ultimo Lord de una bolsa sea tambien el primero de la siguiente.
+            const nextIndex = this.bonusLordBag.length - 1;
+            if (this.lastBonusLord && this.bonusLordBag[nextIndex] === this.lastBonusLord) {
+                [this.bonusLordBag[nextIndex], this.bonusLordBag[0]] =
+                    [this.bonusLordBag[0], this.bonusLordBag[nextIndex]];
+            }
+        }
+
+        const lord = this.bonusLordBag.pop() ?? 'ignis';
+        this.lastBonusLord = lord;
+        return lord;
     }
 
     private showSelectedBonusLord(lordKey: LordKey): void {
