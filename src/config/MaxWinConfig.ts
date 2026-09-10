@@ -57,8 +57,8 @@ export const MAX_WIN_CONFIG = {
     ] as MaxWinLevel[],
     
     // Visual config
-    meterPosition: { x: 100, y: 500 },
-    meterSize: { width: 150, height: 400 },
+    meterPosition: { x: 100, y: 535 },
+    meterSize: { width: 150, height: 330 },
     
     // Animation config
     fillDuration: 500,
