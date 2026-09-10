@@ -612,7 +612,7 @@ export class GameScene extends Phaser.Scene {
         
         // Visual: Mega explosion
         createLordPowerEffect(this, lordGem.x, lordGem.y, lordConfig.baseColor);
-        shakeScreen(this, 2);
+        shakeScreen(this, 0.6);
         
         // Destroy lord and neighbors
         lordGem.destroy();
@@ -756,7 +756,7 @@ export class GameScene extends Phaser.Scene {
         });
 
         createConfetti(this);
-        shakeScreen(this, 2);
+        shakeScreen(this, 1);
         const entrance = this.add.text(width / 2, height / 2, 'BONUS UNLOCKED!\n10 FREE SPINS', {
             fontSize: '58px', color: '#FFD86B', fontStyle: 'bold', align: 'center',
             stroke: '#3A1600', strokeThickness: 10
@@ -883,7 +883,6 @@ export class GameScene extends Phaser.Scene {
         
         // Visual effect
         createSuperBonusEffect(this);
-        shakeScreen(this, 3);
         
         // Show level achievement
         const levelText = this.add.text(
@@ -1473,7 +1472,7 @@ export class GameScene extends Phaser.Scene {
         
         // Visual effect
         createLordPowerEffect(this, lordGem.x, lordGem.y, config.baseColor);
-        shakeScreen(this, 2);
+        shakeScreen(this, 0.7);
         
         // Find all gems of matching color
         const matchingGems = findAllGemsOfColor(this.grid, matchColor);
@@ -1522,7 +1521,7 @@ export class GameScene extends Phaser.Scene {
         
         // Visual effects
         createExplosion(this, bombGem.x, bombGem.y, 0xFF6B00, 2);
-        shakeScreen(this, 1.5);
+        shakeScreen(this, 0.6);
         
         // Destroy gems
         explosionGems.forEach(gemData => {
@@ -1564,7 +1563,7 @@ export class GameScene extends Phaser.Scene {
             });
         });
         
-        shakeScreen(this, 0.5);
+        shakeScreen(this, 0.25);
         
         // Show win
         this.addWin(totalReward, false);
