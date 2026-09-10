@@ -44,6 +44,8 @@ export class GameScene extends Phaser.Scene {
     private background?: Phaser.GameObjects.Image;
     private bonusNightOverlay?: Phaser.GameObjects.Rectangle;
     private bonusLabel?: Phaser.GameObjects.Text;
+    private bonusPrizeTotal = 0;
+    private bonusPrizeText?: Phaser.GameObjects.Text;
     
     // RTP tracking system
     private rtpTracker = {
@@ -214,7 +216,7 @@ export class GameScene extends Phaser.Scene {
      * Row 0 is at bottom, higher rows are higher up
      */
     private getGridY(row: number): number {
-        const rowSpacing = 54;
+        const rowSpacing = 56;
         return GAME_CONFIG.playArea.bottom - (row * rowSpacing) - (rowSpacing / 2);
     }
     
@@ -288,6 +290,17 @@ export class GameScene extends Phaser.Scene {
             0x8B5CF6,
             () => this.showBetModal()
         );
+
+        this.bonusPrizeText = this.add.text(this.cameras.main.width / 2, 38, '', {
+            fontSize: '22px',
+            color: '#FF4DDB',
+            fontFamily: 'Arial',
+            fontStyle: 'bold',
+            backgroundColor: '#11051CCC',
+            padding: { x: 14, y: 7 },
+            stroke: '#000000',
+            strokeThickness: 4
+        }).setOrigin(0.5).setDepth(1100).setVisible(false);
     }
     
     private createButton(
@@ -394,20 +407,49 @@ export class GameScene extends Phaser.Scene {
         this.maxWinMeter = this.add.container(x, y);
         this.maxWinMeter.setDepth(20);
         
-        // Background
-        const bg = this.add.rectangle(0, 0, width, height, 0x000000, 0.8);
-        bg.setStrokeStyle(3, 0xFFD700);
+        // Ancient ruined tower surrounding the match-energy slots.
+        const ruinFrame = this.add.graphics();
+        ruinFrame.fillStyle(0x080b10, 0.9);
+        ruinFrame.fillRoundedRect(-width / 2 + 13, -height / 2 + 32, width - 26, height - 66, 8);
+        ruinFrame.lineStyle(2, 0x9f873f, 0.5);
+        ruinFrame.strokeRoundedRect(-width / 2 + 13, -height / 2 + 32, width - 26, height - 66, 8);
+
+        const stoneColors = [0x59584f, 0x45463f, 0x69675b, 0x3b3e39];
+        for (let index = 0; index < 9; index++) {
+            const stoneY = -height / 2 + 42 + index * 37;
+            const offset = index % 2 === 0 ? 0 : 3;
+            ruinFrame.fillStyle(stoneColors[index % stoneColors.length], 1);
+            ruinFrame.fillRoundedRect(-width / 2 - offset, stoneY, 24, 32, 4);
+            ruinFrame.fillRoundedRect(width / 2 - 24 + offset, stoneY, 24, 32, 4);
+            ruinFrame.lineStyle(1, 0xb9ae85, 0.32);
+            ruinFrame.strokeRoundedRect(-width / 2 - offset, stoneY, 24, 32, 4);
+            ruinFrame.strokeRoundedRect(width / 2 - 24 + offset, stoneY, 24, 32, 4);
+        }
+
+        [-52, -17, 18].forEach((stoneX, index) => {
+            ruinFrame.fillStyle(stoneColors[(index + 1) % stoneColors.length], 1);
+            ruinFrame.fillRoundedRect(stoneX, -height / 2 + 4 + (index === 1 ? -5 : 0), 34, 30, 4);
+            ruinFrame.fillRoundedRect(stoneX, height / 2 - 35 + (index === 2 ? 3 : 0), 34, 31, 4);
+        });
+
+        ruinFrame.lineStyle(4, 0x315b20, 0.9);
+        ruinFrame.beginPath();
+        ruinFrame.moveTo(-width / 2 + 8, -height / 2 + 28);
+        ruinFrame.lineTo(-width / 2 + 18, -height / 2 + 92);
+        ruinFrame.lineTo(-width / 2 + 8, -height / 2 + 145);
+        ruinFrame.strokePath();
         
         // Title
-        const title = this.add.text(0, -height/2 + 20, 'MAX WIN', {
-            fontSize: '20px',
+        const title = this.add.text(0, -height/2 + 18, 'MATCH TOWER', {
+            fontSize: '16px',
             color: '#FFD700',
             fontFamily: 'Arial',
             fontStyle: 'bold'
         }).setOrigin(0.5);
         
         // Progress bar background
-        const barBg = this.add.rectangle(0, 0, width - 20, height - 100, 0x333333, 1);
+        const barBg = this.add.rectangle(0, 0, width - 48, height - 100, 0x10141B, 0.94);
+        barBg.setStrokeStyle(2, 0xC9A84C, 0.45);
         
         // Progress bar fill (initially empty)
         this.maxWinProgressBar = this.add.graphics();
@@ -419,7 +461,7 @@ export class GameScene extends Phaser.Scene {
             fontFamily: 'Arial'
         }).setOrigin(0.5);
         
-        this.maxWinMeter.add([bg, title, barBg, this.maxWinProgressBar, this.maxWinText]);
+        this.maxWinMeter.add([ruinFrame, title, barBg, this.maxWinProgressBar, this.maxWinText]);
         
         this.updateMaxWinMeter();
     }
@@ -429,10 +471,8 @@ export class GameScene extends Phaser.Scene {
         
         const config = MAX_WIN_CONFIG;
         const maxLords = config.levels[config.levels.length - 1].lordsRequired;
-        const percentage = this.lordsCaptured / maxLords;
-        
         // Find current level
-        let currentLevel = config.levels[0];
+        let currentLevel = config.levels[config.levels.length - 1];
         for (const level of config.levels) {
             if (this.lordsCaptured < level.lordsRequired) {
                 currentLevel = level;
@@ -443,16 +483,25 @@ export class GameScene extends Phaser.Scene {
         // Update progress bar
         const { width, height } = config.meterSize;
         const barHeight = height - 100;
-        const fillHeight = barHeight * percentage;
-        
+        const blockCount = maxLords;
+        const blockGap = 4;
+        const blockHeight = (barHeight - blockGap * (blockCount - 1)) / blockCount;
+        const blockWidth = width - 56;
+        const litBlocks = Math.min(this.lordsCaptured, blockCount);
+
         this.maxWinProgressBar.clear();
-        this.maxWinProgressBar.fillStyle(currentLevel.color, 1);
-        this.maxWinProgressBar.fillRect(
-            -(width - 20) / 2,
-            (barHeight / 2) - fillHeight,
-            width - 20,
-            fillHeight
-        );
+        for (let index = 0; index < blockCount; index++) {
+            const blockNumber = index + 1;
+            const blockLevel = config.levels.find(level => blockNumber <= level.lordsRequired)
+                ?? config.levels[config.levels.length - 1];
+            const y = barHeight / 2 - blockHeight * (index + 1) - blockGap * index;
+            const isLit = index < litBlocks;
+
+            this.maxWinProgressBar.fillStyle(isLit ? blockLevel.color : 0x151821, isLit ? 1 : 0.88);
+            this.maxWinProgressBar.fillRoundedRect(-blockWidth / 2, y, blockWidth, blockHeight, 3);
+            this.maxWinProgressBar.lineStyle(1.5, isLit ? 0xFFFFFF : 0x555B68, isLit ? 0.72 : 0.5);
+            this.maxWinProgressBar.strokeRoundedRect(-blockWidth / 2, y, blockWidth, blockHeight, 3);
+        }
         
         // Update text
         this.maxWinText?.setText(`${this.lordsCaptured}/${maxLords} Matches\n${currentLevel.emoji} ${currentLevel.name}`);
@@ -852,6 +901,8 @@ export class GameScene extends Phaser.Scene {
         if (!isBonusSpin) {
             this.balance -= this.currentBet;
             this.rtpTracker.totalBets += this.currentBet;
+            this.bonusPrizeTotal = 0;
+            this.updateBonusPrizeDisplay();
         }
         
         this.roundInProgress = true;
@@ -982,7 +1033,7 @@ export class GameScene extends Phaser.Scene {
 
             // Compact size for eleven rows: each jewel remains separate and
             // centered inside its channel.
-            gem.setScale(0.78);
+            gem.setScale(0.74);
             gem.setAlpha(0);
             // Reserve the cell immediately. Without this, parallel cascade
             // refills can select the same empty cell before a tween completes.
@@ -1072,7 +1123,13 @@ export class GameScene extends Phaser.Scene {
      * Remove gems from grid with explosion animations
      */
     private async removeGems(clusters: Cluster[]): Promise<void> {
-        const allGems = clusters.flatMap(c => c.gems);
+        // A gem at the crossing of a horizontal and vertical match may appear
+        // in two clusters. Explode and destroy that physical gem only once.
+        const uniqueGems = new Map<string, Cluster['gems'][number]>();
+        clusters.flatMap(c => c.gems).forEach(gemData => {
+            uniqueGems.set(`${gemData.col},${gemData.row}`, gemData);
+        });
+        const allGems = [...uniqueGems.values()];
         
         allGems.forEach(gemData => {
             const { container, col, row } = gemData;
@@ -1102,7 +1159,7 @@ export class GameScene extends Phaser.Scene {
      * Apply grid gravity - move gems down to fill gaps
      */
     private async applyGridGravity(): Promise<void> {
-        const movingGems: Phaser.GameObjects.Container[] = [];
+        const movements: Promise<void>[] = [];
 
         for (let col = 0; col < GAME_CONFIG.columns; col++) {
             // Rows start at the bottom, so keeping this order compacts every
@@ -1119,20 +1176,34 @@ export class GameScene extends Phaser.Scene {
                 gem.setData('col', col);
                 gem.setData('row', targetRow);
 
+                const targetX = this.getGridX(col);
                 const targetY = this.getGridY(targetRow);
-                if (Math.abs(gem.y - targetY) > 1) {
-                    movingGems.push(gem);
-                    this.tweens.add({
-                        targets: gem,
-                        y: targetY,
-                        duration: 260,
-                        ease: 'Cubic.easeIn'
-                    });
+                this.tweens.killTweensOf(gem);
+
+                if (Math.abs(gem.y - targetY) > 0.5 || Math.abs(gem.x - targetX) > 0.5) {
+                    movements.push(new Promise<void>(resolve => {
+                        this.tweens.add({
+                            targets: gem,
+                            x: targetX,
+                            y: targetY,
+                            duration: 280,
+                            ease: 'Cubic.easeIn',
+                            onComplete: () => {
+                                gem.setPosition(targetX, targetY);
+                                this.reEnableGemAnimations(gem, targetY);
+                                resolve();
+                            }
+                        });
+                    }));
+                } else {
+                    gem.setPosition(targetX, targetY);
                 }
             });
         }
 
-        if (movingGems.length > 0) await this.wait(280);
+        // Do not refill or scan for another match until every falling gem has
+        // actually reached the centre of its destination cell.
+        await Promise.all(movements);
     }
     
     /**
@@ -1155,8 +1226,21 @@ export class GameScene extends Phaser.Scene {
         }
 
         await Promise.all(spawnPromises);
+        this.snapAllGemsToGrid();
         await this.wait(500);
         return this.activeRows >= GAME_CONFIG.maxRows;
+    }
+
+    private snapAllGemsToGrid(): void {
+        for (let row = 0; row < this.activeRows; row++) {
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
+                const gem = this.grid[row]?.[col];
+                if (!gem) continue;
+                gem.setPosition(this.getGridX(col), this.getGridY(row));
+                gem.setData('col', col);
+                gem.setData('row', row);
+            }
+        }
     }
     
     /**
@@ -1582,7 +1666,6 @@ export class GameScene extends Phaser.Scene {
                 this.tweens.add({
                     targets: sparkle,
                     alpha: { from: 0, to: 1 },
-                    angle: 180,
                     duration: GAME_CONFIG.animations.sparkle.duration,
                     yoyo: true,
                     repeat: -1,
@@ -1605,6 +1688,11 @@ export class GameScene extends Phaser.Scene {
     private addWin(amount: number, isSpecial: boolean = false): void {
         this.balance += amount;
         this.updateUI();
+
+        if (isSpecial && amount > 0) {
+            this.bonusPrizeTotal += amount;
+            this.updateBonusPrizeDisplay();
+        }
         
         // Create persistent win text
         const winText = createWinText(
@@ -1616,6 +1704,36 @@ export class GameScene extends Phaser.Scene {
         );
         
         this.winDisplays.push(winText);
+
+        // Individual gold/pink awards are celebrations, not permanent UI.
+        // Float them upward and remove them before the next award can overlap.
+        this.tweens.add({
+            targets: winText,
+            y: winText.y - 65,
+            alpha: 0,
+            delay: 950,
+            duration: 650,
+            ease: 'Cubic.easeOut',
+            onComplete: () => {
+                this.winDisplays = this.winDisplays.filter(item => item !== winText);
+                winText.destroy();
+            }
+        });
+    }
+
+    private updateBonusPrizeDisplay(): void {
+        if (!this.bonusPrizeText) return;
+        if (this.bonusPrizeTotal <= 0) {
+            this.bonusPrizeText.setVisible(false);
+            return;
+        }
+        this.bonusPrizeText.setText(`BONUS WIN  £${this.bonusPrizeTotal.toFixed(2)}`).setVisible(true);
+        this.tweens.add({
+            targets: this.bonusPrizeText,
+            scale: { from: 1.12, to: 1 },
+            duration: 260,
+            ease: 'Back.easeOut'
+        });
     }
     
     // ========================================
