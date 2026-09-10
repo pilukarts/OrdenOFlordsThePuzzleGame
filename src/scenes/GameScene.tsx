@@ -26,6 +26,7 @@ import {
 } from '../utils/ParticleEffects';
 
 type LordKey = keyof typeof LORD_CONFIG;
+const MEDIEVAL_FONT = 'Palatino Linotype, Book Antiqua, Georgia, serif';
 
 export class GameScene extends Phaser.Scene {
     // Grid and gems
@@ -97,6 +98,10 @@ export class GameScene extends Phaser.Scene {
         super({ key: 'GameScene' });
         // Cache gem weight total for performance
         this.gemWeightTotal = Object.values(RTP_CONFIG.gemWeights).reduce((a, b) => a + b, 0);
+    }
+
+    private formatMoney(value: number): string {
+        return `£${value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
     preload() {
@@ -258,8 +263,8 @@ export class GameScene extends Phaser.Scene {
         
         const textStyle: Phaser.Types.GameObjects.Text.TextStyle = {
             fontSize: '13px',
-            color: '#FFFFFF',
-            fontFamily: 'Arial',
+            color: '#F7E8BE',
+            fontFamily: MEDIEVAL_FONT,
             fontStyle: 'bold',
             stroke: '#000000',
             strokeThickness: 3
@@ -268,21 +273,21 @@ export class GameScene extends Phaser.Scene {
         // Balance
         this.balanceText = this.add.text(
             panelX, panelY - 120,
-            `Balance: £${this.balance.toFixed(2)}`,
+            `TREASURY  ${this.formatMoney(this.balance)}`,
             textStyle
         ).setOrigin(0.5).setDepth(11);
         
         // Bet
         this.betText = this.add.text(
             panelX, panelY - 80,
-            `Bet: £${this.currentBet.toFixed(2)}`,
+            `WAGER  ${this.formatMoney(this.currentBet)}`,
             textStyle
         ).setOrigin(0.5).setDepth(11);
         
         // Round info
         this.roundInfoText = this.add.text(
             panelX, panelY - 40,
-            'Ready to Spin',
+            'AWAITING SPIN',
             { ...textStyle, fontSize: '14px' }
         ).setOrigin(0.5).setDepth(11);
         
@@ -299,14 +304,15 @@ export class GameScene extends Phaser.Scene {
         this.createButton(
             panelX, panelY + 130,
             126, 38,
-            'CHANGE BET',
+            'SET WAGER',
             0x8B5CF6,
             () => this.showBetModal()
         );
 
         // Compact score bridge between the SPIN controls and Match Tower.
-        this.spinWinText = this.add.text(panelX, 370, 'SPIN WIN  £0.00', {
+        this.spinWinText = this.add.text(panelX, 370, 'ROUND WIN  £0.00', {
             fontSize: '14px', color: '#FFE078', fontStyle: 'bold',
+            fontFamily: MEDIEVAL_FONT,
             backgroundColor: '#11141BEF', padding: { x: 8, y: 6 },
             stroke: '#000000', strokeThickness: 3
         }).setOrigin(0.5).setDepth(25);
@@ -314,7 +320,7 @@ export class GameScene extends Phaser.Scene {
         this.bonusPrizeText = this.add.text(this.cameras.main.width / 2, 38, '', {
             fontSize: '22px',
             color: '#FF4DDB',
-            fontFamily: 'Arial',
+            fontFamily: MEDIEVAL_FONT,
             fontStyle: 'bold',
             backgroundColor: '#11051CCC',
             padding: { x: 14, y: 7 },
@@ -345,7 +351,7 @@ export class GameScene extends Phaser.Scene {
         const buttonText = this.add.text(0, 0, text, {
             fontSize: width <= 130 ? '16px' : '20px',
             color: `#${color.toString(16).padStart(6, '0')}`,
-            fontFamily: 'Arial',
+            fontFamily: MEDIEVAL_FONT,
             fontStyle: 'bold'
         }).setOrigin(0.5);
         
@@ -369,7 +375,7 @@ export class GameScene extends Phaser.Scene {
             .setDepth(1200)
             .setInteractive({ useHandCursor: true });
         this.musicButtonText = this.add.text(x, y, isMusicEnabled() ? '♫ MUSIC' : '♫ MUTED', {
-            fontSize: '13px', color: '#FFE078', fontStyle: 'bold'
+            fontSize: '13px', color: '#FFE078', fontStyle: 'bold', fontFamily: MEDIEVAL_FONT
         }).setOrigin(0.5).setDepth(1201);
         bg.on('pointerdown', () => {
             const enabled = toggleMusic(this);
@@ -388,7 +394,7 @@ export class GameScene extends Phaser.Scene {
         const title = this.add.text(0, -80, 'LORDS\nTHIS ROUND', {
             fontSize: '16px',
             color: '#FFD700',
-            fontFamily: 'Arial',
+            fontFamily: MEDIEVAL_FONT,
             fontStyle: 'bold',
             align: 'center',
             stroke: '#000000',
@@ -408,7 +414,7 @@ export class GameScene extends Phaser.Scene {
         const title = this.add.text(0, -80, 'LORDS\nTHIS ROUND', {
             fontSize: '16px',
             color: '#FFD700',
-            fontFamily: 'Arial',
+            fontFamily: MEDIEVAL_FONT,
             fontStyle: 'bold',
             align: 'center',
             stroke: '#000000',
@@ -491,10 +497,10 @@ export class GameScene extends Phaser.Scene {
         this.setTowerCrestBonus(false);
         
         // Title
-        const title = this.add.text(0, -height/2 + 370, 'MATCH TOWER', {
+        const title = this.add.text(0, -height/2 + 370, 'LORDS TOWER', {
             fontSize: '16px',
             color: '#FFD700',
-            fontFamily: 'Arial',
+            fontFamily: MEDIEVAL_FONT,
             fontStyle: 'bold'
         }).setOrigin(0.5);
         
@@ -512,7 +518,7 @@ export class GameScene extends Phaser.Scene {
         this.maxWinText = this.add.text(0, height/2 - 24, '0/15 Matches', {
             fontSize: '16px',
             color: '#FFFFFF',
-            fontFamily: 'Arial'
+            fontFamily: MEDIEVAL_FONT
         }).setOrigin(0.5);
         
         this.maxWinMeter.add([ruinFrame, crestGlow, crestStone, crestRune, title, barBg, this.maxWinProgressBar, this.maxWinText]);
@@ -1027,7 +1033,7 @@ export class GameScene extends Phaser.Scene {
         const title = this.add.text(width/2, height/2 - 200, 'SELECT YOUR BET', {
             fontSize: '24px',
             color: '#FFD700',
-            fontFamily: 'Arial',
+            fontFamily: MEDIEVAL_FONT,
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(102);
         
@@ -1042,12 +1048,12 @@ export class GameScene extends Phaser.Scene {
             
             const btn = this.createButton(
                 x, y, 140, 50,
-                `£${value.toFixed(2)}`,
+                this.formatMoney(value),
                 0x8B5CF6,
                 () => {
                     this.currentBet = value;
                     if (this.betText) {
-                        this.betText.setText(`Bet: £${value.toFixed(2)}`);
+                        this.betText.setText(`WAGER  ${this.formatMoney(value)}`);
                     }
                     elementsToDestroy.forEach(el => el.destroy());
                 }
@@ -1104,7 +1110,7 @@ export class GameScene extends Phaser.Scene {
         await this.clearBoard();
         this.cascadeLevel = 0;
         this.roundWinnings = 0;  // Reset round winnings
-        this.spinWinText?.setText('SPIN WIN  £0.00');
+        this.spinWinText?.setText('ROUND WIN  £0.00');
         // The bonus target belongs to this spin only; matches from previous
         // spins never accumulate toward the six-match trigger.
         this.lordsCaptured = 0;
@@ -1480,7 +1486,7 @@ export class GameScene extends Phaser.Scene {
         this.balance += amount;
         this.updateUI('');
 
-        this.spinWinText?.setText(`SPIN WIN  £${amount.toFixed(2)}`);
+        this.spinWinText?.setText(`ROUND WIN  ${this.formatMoney(amount)}`);
         if (this.spinWinText) {
             this.tweens.add({
                 targets: this.spinWinText,
@@ -1936,7 +1942,7 @@ export class GameScene extends Phaser.Scene {
             this.bonusPrizeText.setVisible(false);
             return;
         }
-        this.bonusPrizeText.setText(`BONUS WIN  £${this.bonusPrizeTotal.toFixed(2)}`).setVisible(true);
+        this.bonusPrizeText.setText(`BONUS WIN  ${this.formatMoney(this.bonusPrizeTotal)}`).setVisible(true);
         this.tweens.add({
             targets: this.bonusPrizeText,
             scale: { from: 1.12, to: 1 },
@@ -2055,7 +2061,7 @@ export class GameScene extends Phaser.Scene {
             {
                 fontSize: '56px',
                 color: '#FFD700',
-                fontFamily: 'Arial',
+                fontFamily: MEDIEVAL_FONT,
                 fontStyle: 'bold',
                 align: 'center',
                 stroke: '#000000',
@@ -2135,7 +2141,7 @@ export class GameScene extends Phaser.Scene {
         }
         
         this.roundInProgress = false;
-        this.updateUI('Ready to Spin');
+        this.updateUI('AWAITING SPIN');
     }
     
     private triggerSuperBonus(): void {
@@ -2150,7 +2156,7 @@ export class GameScene extends Phaser.Scene {
             {
                 fontSize: '48px',
                 color: '#FF00FF',
-                fontFamily: 'Arial',
+                fontFamily: MEDIEVAL_FONT,
                 fontStyle: 'bold',
                 align: 'center',
                 stroke: '#000000',
@@ -2172,10 +2178,10 @@ export class GameScene extends Phaser.Scene {
     
     private updateUI(roundInfo?: string): void {
         if (this.balanceText) {
-            this.balanceText.setText(`Balance: £${this.balance.toFixed(2)}`);
+            this.balanceText.setText(`TREASURY  ${this.formatMoney(this.balance)}`);
         }
         if (this.betText) {
-            this.betText.setText(`Bet: £${this.currentBet.toFixed(2)}`);
+            this.betText.setText(`WAGER  ${this.formatMoney(this.currentBet)}`);
         }
         if (this.roundInfoText && roundInfo) {
             this.roundInfoText.setText(roundInfo);
@@ -2320,19 +2326,19 @@ export class GameScene extends Phaser.Scene {
             this.rtpTracker.consecutiveLosses++;
             this.rtpTracker.consecutiveWins = 0;
         } else if (betMultiple >= 10) {
-            message = `MEGA WIN!\n£${this.roundWinnings.toFixed(2)}`;
+            message = `MEGA WIN!\n${this.formatMoney(this.roundWinnings)}`;
             color = '#FF00FF';
             size = '96px';
             this.rtpTracker.consecutiveWins++;
             this.rtpTracker.consecutiveLosses = 0;
         } else if (betMultiple >= 5) {
-            message = `BIG WIN!\n£${this.roundWinnings.toFixed(2)}`;
+            message = `BIG WIN!\n${this.formatMoney(this.roundWinnings)}`;
             color = '#FF6B00';
             size = '72px';
             this.rtpTracker.consecutiveWins++;
             this.rtpTracker.consecutiveLosses = 0;
         } else {
-            message = `WIN £${this.roundWinnings.toFixed(2)}`;
+            message = `WIN ${this.formatMoney(this.roundWinnings)}`;
             color = '#FFD700';
             size = '56px';
             this.rtpTracker.consecutiveWins++;
