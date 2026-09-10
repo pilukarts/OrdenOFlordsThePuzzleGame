@@ -7,7 +7,7 @@ import Phaser from 'phaser';
 import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG, RTP_CONFIG, getMatchMultiplier, getComboMultiplier } from '../config/GameConfig';
 import { MAX_WIN_CONFIG, type MaxWinLevel } from '../config/MaxWinConfig';
 import { createMascotGem, createLordGem, createBlackGem, createBombGem, getRandomGemType } from '../utils/GemFactory';
-import { 
+import {
     detectAllMatches,
     checkLordPower, 
     findAllGemsOfColor, 
@@ -23,6 +23,8 @@ import {
     createConfetti,
     createVictoryGlow
 } from '../utils/ParticleEffects';
+
+type LordKey = keyof typeof LORD_CONFIG;
 
 export class GameScene extends Phaser.Scene {
     // Grid and gems
@@ -46,6 +48,11 @@ export class GameScene extends Phaser.Scene {
     private bonusLabel?: Phaser.GameObjects.Text;
     private bonusPrizeTotal = 0;
     private bonusPrizeText?: Phaser.GameObjects.Text;
+    private selectedBonusLord?: LordKey;
+    private bonusDice?: Phaser.GameObjects.Container;
+    private bonusDiceSymbol?: Phaser.GameObjects.Text;
+    private bonusLordCard?: Phaser.GameObjects.Container;
+    private bonusRollInProgress = false;
     
     // RTP tracking system
     private rtpTracker = {
@@ -415,8 +422,9 @@ export class GameScene extends Phaser.Scene {
         ruinFrame.strokeRoundedRect(-width / 2 + 13, -height / 2 + 32, width - 26, height - 66, 8);
 
         const stoneColors = [0x59584f, 0x45463f, 0x69675b, 0x3b3e39];
+        const stoneStep = (height - 88) / 9;
         for (let index = 0; index < 9; index++) {
-            const stoneY = -height / 2 + 42 + index * 37;
+            const stoneY = -height / 2 + 42 + index * stoneStep;
             const offset = index % 2 === 0 ? 0 : 3;
             ruinFrame.fillStyle(stoneColors[index % stoneColors.length], 1);
             ruinFrame.fillRoundedRect(-width / 2 - offset, stoneY, 24, 32, 4);
@@ -438,9 +446,18 @@ export class GameScene extends Phaser.Scene {
         ruinFrame.lineTo(-width / 2 + 18, -height / 2 + 92);
         ruinFrame.lineTo(-width / 2 + 8, -height / 2 + 145);
         ruinFrame.strokePath();
+
+        const crestGlow = this.add.circle(0, -height / 2 + 7, 22, 0xFFD45A, 0.16)
+            .setBlendMode(Phaser.BlendModes.ADD);
+        const crestStone = this.add.circle(0, -height / 2 + 7, 16, 0x4F5049, 1)
+            .setStrokeStyle(3, 0xD6B550, 0.9);
+        const crestRune = this.add.text(0, -height / 2 + 6, '✦', {
+            fontSize: '18px', color: '#FFE48A', fontStyle: 'bold'
+        }).setOrigin(0.5);
+        this.tweens.add({ targets: crestGlow, alpha: 0.4, scale: 1.2, duration: 850, yoyo: true, repeat: -1 });
         
         // Title
-        const title = this.add.text(0, -height/2 + 18, 'MATCH TOWER', {
+        const title = this.add.text(0, -height/2 + 46, 'MATCH TOWER', {
             fontSize: '16px',
             color: '#FFD700',
             fontFamily: 'Arial',
@@ -461,7 +478,7 @@ export class GameScene extends Phaser.Scene {
             fontFamily: 'Arial'
         }).setOrigin(0.5);
         
-        this.maxWinMeter.add([ruinFrame, title, barBg, this.maxWinProgressBar, this.maxWinText]);
+        this.maxWinMeter.add([ruinFrame, crestGlow, crestStone, crestRune, title, barBg, this.maxWinProgressBar, this.maxWinText]);
         
         this.updateMaxWinMeter();
     }
@@ -753,6 +770,91 @@ export class GameScene extends Phaser.Scene {
             stroke: '#07122F', strokeThickness: 6
         }).setOrigin(0.5).setDepth(1100);
         this.tweens.add({ targets: this.bonusLabel, alpha: 0.55, duration: 600, yoyo: true, repeat: -1 });
+        this.createBonusLordDice();
+    }
+
+    private createBonusLordDice(): void {
+        this.selectedBonusLord = undefined;
+        this.bonusRollInProgress = false;
+        this.bonusDice?.destroy();
+
+        this.bonusDice = this.add.container(225, 495).setDepth(1150).setAlpha(0.58);
+        const stone = this.add.graphics();
+        stone.fillStyle(0x30343A, 0.98);
+        stone.fillRoundedRect(-43, -43, 86, 86, 13);
+        stone.lineStyle(4, 0xD2AE48, 0.92);
+        stone.strokeRoundedRect(-43, -43, 86, 86, 13);
+        stone.lineStyle(2, 0x15171B, 0.75);
+        stone.lineBetween(-31, -24, -12, -34);
+        stone.lineBetween(18, 29, 35, 18);
+
+        this.bonusDiceSymbol = this.add.text(0, -4, '⚄', {
+            fontSize: '52px', color: '#FFE073',
+            stroke: '#281600', strokeThickness: 5
+        }).setOrigin(0.5);
+        const label = this.add.text(0, 61, 'ROLL LORD', {
+            fontSize: '14px', color: '#FFF1B8', fontStyle: 'bold',
+            backgroundColor: '#080B10CC', padding: { x: 8, y: 4 }
+        }).setOrigin(0.5);
+        this.bonusDice.add([stone, this.bonusDiceSymbol, label]);
+        this.bonusDice.setSize(92, 118);
+    }
+
+    private enableBonusLordRoll(): void {
+        if (!this.bonusDice) return;
+        this.bonusDice.setAlpha(1).setInteractive({ useHandCursor: true });
+        this.bonusDice.once('pointerdown', () => this.rollBonusLord());
+        this.tweens.add({ targets: this.bonusDice, scale: 1.08, duration: 520, yoyo: true, repeat: -1 });
+        this.updateUI('Roll the Lord die!');
+    }
+
+    private rollBonusLord(): void {
+        if (this.bonusRollInProgress || !this.bonusDice || !this.bonusDiceSymbol) return;
+        this.bonusRollInProgress = true;
+        this.bonusDice.disableInteractive();
+        this.tweens.killTweensOf(this.bonusDice);
+        this.tweens.add({
+            targets: this.bonusDice,
+            angle: 720,
+            scale: { from: 1, to: 1.25 },
+            duration: 1150,
+            ease: 'Cubic.easeInOut',
+            onUpdate: (_tween, target) => {
+                const faces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+                const index = Math.floor(Math.abs(target.angle) / 45) % faces.length;
+                this.bonusDiceSymbol?.setText(faces[index]);
+            },
+            onComplete: () => {
+                const lordKeys = Object.keys(LORD_CONFIG) as LordKey[];
+                this.selectedBonusLord = Phaser.Utils.Array.GetRandom(lordKeys);
+                this.showSelectedBonusLord(this.selectedBonusLord);
+                this.bonusDice?.destroy();
+                this.bonusDice = undefined;
+                this.time.delayedCall(1400, () => {
+                    this.roundInProgress = false;
+                    void this.startRound(true);
+                });
+            }
+        });
+    }
+
+    private showSelectedBonusLord(lordKey: LordKey): void {
+        const lord = LORD_CONFIG[lordKey];
+        this.bonusLordCard?.destroy();
+        this.bonusLordCard = this.add.container(225, 495).setDepth(1150).setScale(0.2);
+        const glow = this.add.circle(0, 0, 50, lord.glowColor, 0.25).setBlendMode(Phaser.BlendModes.ADD);
+        const ring = this.add.circle(0, 0, 43, 0x070A10, 0.94).setStrokeStyle(5, lord.baseColor, 1);
+        const portrait = this.add.image(0, 0, lord.assetKey).setDisplaySize(76, 76);
+        const name = this.add.text(0, 61, lord.name, {
+            fontSize: '13px', color: `#${lord.baseColor.toString(16).padStart(6, '0')}`,
+            fontStyle: 'bold', backgroundColor: '#070A10DD', padding: { x: 7, y: 4 }
+        }).setOrigin(0.5);
+        const power = this.add.text(0, 86, `${lord.matchColor.toUpperCase()} ×2`, {
+            fontSize: '13px', color: '#FFFFFF', fontStyle: 'bold'
+        }).setOrigin(0.5);
+        this.bonusLordCard.add([glow, ring, portrait, name, power]);
+        this.tweens.add({ targets: this.bonusLordCard, scale: 1, duration: 520, ease: 'Back.easeOut' });
+        this.tweens.add({ targets: glow, alpha: 0.5, scale: 1.18, duration: 700, yoyo: true, repeat: -1 });
     }
 
     private finishBonusMode(): void {
@@ -764,6 +866,11 @@ export class GameScene extends Phaser.Scene {
         this.bonusNightOverlay = undefined;
         this.bonusLabel?.destroy();
         this.bonusLabel = undefined;
+        this.bonusDice?.destroy();
+        this.bonusDice = undefined;
+        this.bonusLordCard?.destroy();
+        this.bonusLordCard = undefined;
+        this.selectedBonusLord = undefined;
         this.lordsCaptured = 0;
         this.updateMaxWinMeter();
     }
@@ -958,6 +1065,11 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (this.bonusActive && this.bonusSpinsRemaining > 0) {
+            if (!this.selectedBonusLord) {
+                this.roundInProgress = false;
+                this.enableBonusLordRoll();
+                return;
+            }
             if (isBonusSpin) this.bonusSpinsRemaining--;
             this.bonusLabel?.setText(`BONUS ${this.bonusSpinsRemaining}/10`);
             if (this.bonusSpinsRemaining > 0) {
@@ -1108,11 +1220,13 @@ export class GameScene extends Phaser.Scene {
             const clusterSize = cluster.gems.length;
             const multiplier = getMatchMultiplier(clusterSize);
             const comboMultiplier = getComboMultiplier(cascadeLevel);
+            const selectedLord = this.selectedBonusLord ? LORD_CONFIG[this.selectedBonusLord] : undefined;
+            const lordColorMultiplier = this.bonusActive && selectedLord?.matchColor === cluster.color ? 2 : 1;
             
             cluster.gems.forEach(gemData => {
                 const gemType = gemData.container.getData('gemType');
                 const value = GAME_CONFIG.gemValues[gemType as keyof typeof GAME_CONFIG.gemValues] || 0;
-                totalWinnings += value * multiplier * comboMultiplier;
+                totalWinnings += value * multiplier * comboMultiplier * lordColorMultiplier;
             });
         });
         
