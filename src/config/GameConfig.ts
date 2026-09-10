@@ -112,7 +112,7 @@ export const GAME_CONFIG = {
     // ========================================
     rowSpawnDelay: 300,      // Delay between spawning rows
     gemSpawnDelay: 50,       // Delay between spawning gems in a row
-    gemFallDuration: 400,    // Duration of gem falling animation
+    gemFallDuration: 550,    // Slightly slower, weightier individual falls
     cascadeDelay: 300,       // Delay between cascades
     
     // ========================================
