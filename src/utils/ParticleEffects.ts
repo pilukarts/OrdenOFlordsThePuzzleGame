@@ -5,6 +5,8 @@
 
 import Phaser from 'phaser';
 
+const MEDIEVAL_FONT = 'Palatino Linotype, Book Antiqua, Georgia, serif';
+
 /**
  * Create explosion particle effect
  */
@@ -251,7 +253,7 @@ export function createWinText(
     const text = scene.add.text(x, y, `£${amount.toFixed(2)}`, {
         fontSize: isJackpot ? '64px' : '36px',
         color: isJackpot ? '#FF00FF' : '#FFD700',
-        fontFamily: 'Cinzel',
+        fontFamily: MEDIEVAL_FONT,
         fontStyle: 'bold',
         stroke: '#000000',
         strokeThickness: 6,
