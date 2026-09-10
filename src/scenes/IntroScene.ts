@@ -1,5 +1,6 @@
 import Phaser, { Scene } from 'phaser';
 import { GAME_VERSIONS } from '../config/GameVersions';
+import { playMusic } from '../utils/MusicManager';
 
 const BASE = '/OrdenOFlordsThePuzzleGame';
 const LORDS = [
@@ -17,6 +18,13 @@ export default class IntroScene extends Scene {
     this.load.image('intro-cover', '/assets/orden-of-lords.webp');
     this.load.image('intro-logo', `${BASE}/logo.png`);
     LORDS.forEach(([key, , , file]) => this.load.image(`intro-${key}`, `${BASE}/lords/${file}`));
+    this.load.audio('intro_theme', `${BASE}/sounds/music/Orden of Lords.mp3`);
+    this.load.audio('game_theme', `${BASE}/sounds/music/epic_main_song.mp3`);
+    this.load.audio('bonus_theme', `${BASE}/sounds/music/lord  of the worlds.mp3`);
+    this.load.audio('bonus_ignis', `${BASE}/sounds/music/ignis_lordOf Flame.mp3`);
+    this.load.audio('bonus_ventus', `${BASE}/sounds/music/QueenofVentus.mp3`);
+    this.load.audio('bonus_aqua', `${BASE}/sounds/music/Icr_LadyAqua.mp3`);
+    this.load.audio('bonus_terra', `${BASE}/sounds/music/terra+lords.mp3`);
   }
 
   create() {
@@ -69,6 +77,7 @@ export default class IntroScene extends Scene {
   private startGame() {
     if (this.started) return;
     this.started = true;
+    playMusic(this, 'intro_theme', 0.3);
     this.cameras.main.fadeOut(450, 3, 6, 20, (_camera: Phaser.Cameras.Scene2D.Camera, progress: number) => {
       if (progress === 1) this.scene.start('GameScene', { gameVersion: GAME_VERSIONS.current });
     });
