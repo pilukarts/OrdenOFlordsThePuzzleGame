@@ -241,15 +241,15 @@ export class GameScene extends Phaser.Scene {
     
     private createUI(): void {
         const panelX = 100;
-        const panelY = 150;
+        const panelY = 125;
         
         // UI background
-        const bg = this.add.rectangle(panelX, panelY, 180, 350, 0x000000, 0.7);
+        const bg = this.add.rectangle(panelX, panelY, 144, 292, 0x000000, 0.72);
         bg.setStrokeStyle(3, GAME_CONFIG.colors.gold);
         bg.setDepth(10);
         
         const textStyle: Phaser.Types.GameObjects.Text.TextStyle = {
-            fontSize: '16px',
+            fontSize: '13px',
             color: '#FFFFFF',
             fontFamily: 'Arial',
             fontStyle: 'bold',
@@ -281,7 +281,7 @@ export class GameScene extends Phaser.Scene {
         // Spin button
         this.createButton(
             panelX, panelY + 50,
-            160, 60,
+            126, 52,
             'SPIN',
             GAME_CONFIG.colors.gold,
             () => this.startRound()
@@ -290,16 +290,16 @@ export class GameScene extends Phaser.Scene {
         // Change bet button
         this.createButton(
             panelX, panelY + 130,
-            160, 45,
+            126, 38,
             'CHANGE BET',
             0x8B5CF6,
             () => this.showBetModal()
         );
 
         // Compact score bridge between the SPIN controls and Match Tower.
-        this.spinWinText = this.add.text(panelX, 347, 'SPIN WIN  £0.00', {
-            fontSize: '17px', color: '#FFE078', fontStyle: 'bold',
-            backgroundColor: '#11141BEF', padding: { x: 13, y: 7 },
+        this.spinWinText = this.add.text(panelX, 310, 'SPIN WIN  £0.00', {
+            fontSize: '14px', color: '#FFE078', fontStyle: 'bold',
+            backgroundColor: '#11141BEF', padding: { x: 8, y: 6 },
             stroke: '#000000', strokeThickness: 3
         }).setOrigin(0.5).setDepth(25);
 
@@ -1093,15 +1093,18 @@ export class GameScene extends Phaser.Scene {
         this.updateUI('Round Complete');
     }
     
-    /**
-     * Spawn initial 4 rows, one at a time
-     */
+    /** Spawn the opening board as independent streams per channel. */
     private async spawnInitialGrid(): Promise<void> {
-        // Create 4 rows, one at a time
+        const drops: Promise<void>[] = [];
         for (let row = 0; row < GAME_CONFIG.startRows; row++) {
-            await this.spawnRow(row);
-            await this.wait(GAME_CONFIG.rowSpawnDelay);
+            for (let col = 0; col < GAME_CONFIG.columns; col++) {
+                const channelOffset = col * 55;
+                const stackOffset = row * 115;
+                const naturalJitter = Phaser.Math.Between(0, 85);
+                drops.push(this.spawnGemAt(col, row, channelOffset + stackOffset + naturalJitter));
+            }
         }
+        await Promise.all(drops);
     }
     
     /**
@@ -1117,13 +1120,35 @@ export class GameScene extends Phaser.Scene {
         // Wait for all gems in this row to finish animating
         await Promise.all(spawnPromises);
     }
+
+    private gemTypeColor(gemType: string): string | null {
+        if (gemType.startsWith('mascot_')) return gemType.split('_')[1];
+        return null;
+    }
+
+    private wouldCreateEasyMatch(gemType: string, col: number, row: number): boolean {
+        const color = this.gemTypeColor(gemType);
+        if (!color) return false;
+        const sameColor = (checkCol: number, checkRow: number): boolean =>
+            this.grid[checkRow]?.[checkCol]?.getData('color') === color;
+
+        const horizontal = col >= 2 && sameColor(col - 1, row) && sameColor(col - 2, row);
+        const vertical = row >= 2 && sameColor(col, row - 1) && sameColor(col, row - 2);
+        return horizontal || vertical;
+    }
     
     /**
      * Spawn a gem at a specific grid position with tween animation
      */
-    private async spawnGemAt(col: number, row: number): Promise<void> {
+    private async spawnGemAt(col: number, row: number, dropDelay: number = 0): Promise<void> {
         return new Promise((resolve) => {
-            const gemType = getRandomGemType(this.lordsThisRound);
+            let gemType = getRandomGemType(this.lordsThisRound);
+            for (let attempt = 0; attempt < GAME_CONFIG.naturalMatchRerollAttempts; attempt++) {
+                const shouldReroll = this.wouldCreateEasyMatch(gemType, col, row)
+                    && Math.random() < GAME_CONFIG.naturalMatchRerollChance;
+                if (!shouldReroll) break;
+                gemType = getRandomGemType(this.lordsThisRound);
+            }
             
             // Calculate exact grid position
             const targetX = this.getGridX(col);
@@ -1132,7 +1157,7 @@ export class GameScene extends Phaser.Scene {
             // Create the gem at start position (above screen)
             let gem: Phaser.GameObjects.Container;
             const startX = targetX;
-            const startY = targetY - 300;
+            const startY = GAME_CONFIG.playArea.top - Phaser.Math.Between(120, 230);
             
             if (gemType.startsWith('mascot_')) {
                 const color = gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow';
@@ -1165,8 +1190,9 @@ export class GameScene extends Phaser.Scene {
                 targets: gem,
                 y: targetY,
                 alpha: 1,
-                duration: GAME_CONFIG.gemFallDuration,
-                ease: 'Cubic.easeOut',
+                delay: dropDelay,
+                duration: GAME_CONFIG.gemFallDuration + Phaser.Math.Between(80, 230),
+                ease: 'Bounce.easeOut',
                 onComplete: () => {
                     // Re-enable idle animations after landing
                     this.reEnableGemAnimations(gem, targetY);
@@ -1338,9 +1364,12 @@ export class GameScene extends Phaser.Scene {
 
         const spawnPromises: Promise<void>[] = [];
         for (let col = 0; col < GAME_CONFIG.columns; col++) {
+            let dropOrder = 0;
             for (let row = 0; row < this.activeRows; row++) {
                 if (this.grid[row][col] === null) {
-                    spawnPromises.push(this.spawnGemAt(col, row));
+                    const stagger = dropOrder * 105 + col * 32 + Phaser.Math.Between(0, 70);
+                    spawnPromises.push(this.spawnGemAt(col, row, stagger));
+                    dropOrder++;
                 }
             }
         }
