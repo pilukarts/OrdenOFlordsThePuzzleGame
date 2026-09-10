@@ -3,6 +3,7 @@ import { GAME_VERSIONS } from '../config/GameVersions';
 import { playMusic } from '../utils/MusicManager';
 
 const BASE = '/OrdenOFlordsThePuzzleGame';
+const MEDIEVAL_FONT = 'Palatino Linotype, Book Antiqua, Georgia, serif';
 const LORDS = [
   ['ignis', 'LORD IGNIS', 0xff3b18, 'lordIgnis.png'],
   ['ventus', 'DAMA VENTUS', 0x36df55, 'damaVentus.png'],
@@ -54,7 +55,7 @@ export default class IntroScene extends Scene {
       const ring = this.add.circle(x, y, portraitSize * 0.56, 0x030716, 0.9).setStrokeStyle(5, color).setScale(0);
       const portrait = this.add.image(x, y, `intro-${key}`).setDisplaySize(portraitSize, portraitSize).setAlpha(0);
       const name = this.add.text(x, y + portraitSize * 0.72, label, {
-        fontFamily: 'Georgia, serif', fontSize: `${Math.max(12, portraitSize * 0.15)}px`,
+        fontFamily: MEDIEVAL_FONT, fontSize: `${Math.max(12, portraitSize * 0.15)}px`,
         color: `#${color.toString(16).padStart(6, '0')}`, fontStyle: 'bold',
         stroke: '#02040c', strokeThickness: 4
       }).setOrigin(0.5).setAlpha(0);
@@ -65,7 +66,7 @@ export default class IntroScene extends Scene {
     });
 
     const start = this.add.text(width / 2, height * 0.91, 'CLICK TO START', {
-      fontFamily: 'Arial', fontSize: '19px', color: '#fff4cf', fontStyle: 'bold',
+      fontFamily: MEDIEVAL_FONT, fontSize: '19px', color: '#fff4cf', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 5
     }).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: start, alpha: 1, duration: 600, delay: 1900 });
