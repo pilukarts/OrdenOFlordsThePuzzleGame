@@ -10,6 +10,8 @@ export function playMusic(scene: Phaser.Scene, key: string, volume = 0.28): void
     wantedKey = key;
     wantedVolume = volume;
     if (musicMuted || (currentKey === key && currentMusic?.isPlaying)) return;
+    // Keep the current theme playing while a later track is still loading.
+    if (!scene.cache.audio.exists(key)) return;
 
     currentMusic?.stop();
     currentMusic?.destroy();
