@@ -3,33 +3,10 @@ import IntroScene from './scenes/IntroScene';
 import BonusScene from './scenes/BonusScene';
 import { GameScene } from './scenes/GameScene';
 
-// Responsive configuration
-const getGameSize = () => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    
-    // Aspect ratio 16:9 is ideal
-    const targetRatio = 16 / 9;
-    const currentRatio = width / height;
-    
-    let gameWidth = width;
-    let gameHeight = height;
-    
-    // Adjust to maintain aspect ratio
-    if (currentRatio > targetRatio) {
-        gameWidth = height * targetRatio;
-    } else {
-        gameHeight = width / targetRatio;
-    }
-    
-    // Clamp to reasonable sizes
-    gameWidth = Math.min(1920, Math.max(375, gameWidth));
-    gameHeight = Math.min(1080, Math.max(667, gameHeight));
-    
-    return { width: gameWidth, height: gameHeight };
-};
-
-const { width, height } = getGameSize();
+// A stable logical stage keeps the tower and all six channels inside the
+// camera. Phaser scales this complete 16:9 world to each physical screen.
+const width = 1280;
+const height = 720;
 
 const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
@@ -40,24 +17,17 @@ const config: Phaser.Types.Core.GameConfig = {
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: width,
-        height: height,
-        min: {
-            width: 375,
-            height: 667
-        },
-        max: {
-            width: 1920,
-            height: 1080
-        }
+        width,
+        height,
+        expandParent: true
     },
     scene: [IntroScene, BonusScene, GameScene],
 };
 
 const game = new Phaser.Game(config);
 
-// Handle window resize
-window.addEventListener('resize', () => {
-    const { width, height } = getGameSize();
-    game.scale.resize(width, height);
-});
+// iOS changes the usable height while Safari's bars appear and disappear.
+// Refreshing the scale preserves the logical coordinates without rebuilding
+// the scene or moving gems into invalid cells.
+window.addEventListener('resize', () => game.scale.refresh());
+window.addEventListener('orientationchange', () => window.setTimeout(() => game.scale.refresh(), 180));
