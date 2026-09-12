@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#080d26" />
     <meta name="description" content="Orden of Lords — a magical match puzzle game." />
     <title>Orden of Lords — The Puzzle Game</title>
@@ -10,6 +10,12 @@
   </head>
   <body>
     <main id="game" aria-label="Orden of Lords game"></main>
+    <aside id="rotate-device" aria-live="polite">
+      <span class="rotate-crown" aria-hidden="true">♛</span>
+      <strong>TURN THE REALM</strong>
+      <span>Rotate your iPhone to play</span>
+      <small>Gira el iPhone para jugar</small>
+    </aside>
     <noscript>You need JavaScript enabled to play Orden of Lords.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
