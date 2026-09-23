@@ -29,10 +29,28 @@ import {
 type LordKey = keyof typeof LORD_CONFIG;
 const MEDIEVAL_FONT = 'Palatino Linotype, Book Antiqua, Georgia, serif';
 
+interface FreeBall {
+    id: number;
+    display: Phaser.GameObjects.Container;
+    gemType: string;
+    color: string | null;
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    radius: number;
+    angle: number;
+    angularVelocity: number;
+}
+
 export class GameScene extends Phaser.Scene {
     // Grid and gems
     private grid: (Phaser.GameObjects.Container | null)[][] = [];
     private activeRows = 4;  // Current number of active rows (starts at 4, can expand to 11)
+    private freeBalls: FreeBall[] = [];
+    private freePhysicsActive = false;
+    private nextBallId = 1;
+    private comboMarkers: Phaser.GameObjects.Container[] = [];
     
     // Game state
     private balance = 1000;
@@ -166,6 +184,13 @@ export class GameScene extends Phaser.Scene {
         this.createMaxWinMeter();
         this.createAudioControl();
         this.loadGameplayMusic();
+        this.createComboMultiplierColumn();
+        this.time.delayedCall(450, () => this.showBetModal());
+    }
+
+    update(_time: number, delta: number): void {
+        if (!this.freePhysicsActive || this.freeBalls.length === 0) return;
+        this.stepFreeBallPhysics(Math.min(delta, 32) / 1000);
     }
 
     // ========================================
@@ -183,7 +208,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     private async clearBoard(): Promise<void> {
-        const gems = this.grid.flat().filter((gem): gem is Phaser.GameObjects.Container => gem !== null);
+        const freeDisplays = this.freeBalls.map(ball => ball.display).filter(display => display.active);
+        const gridDisplays = this.grid.flat().filter((gem): gem is Phaser.GameObjects.Container => gem !== null);
+        const gems = [...new Set([...freeDisplays, ...gridDisplays])];
         if (gems.length === 0) return;
 
         gems.forEach(gem => {
@@ -200,6 +227,8 @@ export class GameScene extends Phaser.Scene {
                 ease: 'Sine.easeIn',
                 onComplete: () => {
                     gems.forEach(gem => gem.destroy());
+                    this.freeBalls = [];
+                    this.freePhysicsActive = false;
                     this.initializeGrid();
                     resolve();
                 }
@@ -208,15 +237,23 @@ export class GameScene extends Phaser.Scene {
     }
 
     private createGemChannels(): void {
-        const laneHeight = 600;
-        const laneTop = GAME_CONFIG.playArea.bottom - laneHeight;
-        for (let col = 0; col < GAME_CONFIG.columns; col++) {
-            const x = this.getGridX(col);
-            const lane = this.add.rectangle(x, laneTop + laneHeight / 2, 70, laneHeight, 0x09111f, 0.24);
-            lane.setStrokeStyle(2, 0xd8b85a, 0.34).setDepth(0);
-            this.add.line(0, 0, x - 29, laneTop, x - 29, GAME_CONFIG.playArea.bottom, 0xe9cf7a, 0.22).setOrigin(0).setDepth(0);
-            this.add.line(0, 0, x + 29, laneTop, x + 29, GAME_CONFIG.playArea.bottom, 0xe9cf7a, 0.22).setOrigin(0).setDepth(0);
-        }
+        const { left, right, top, bottom } = GAME_CONFIG.playArea;
+        const bowl = this.add.graphics().setDepth(0);
+        bowl.fillStyle(0x07101c, 0.32);
+        bowl.fillRoundedRect(left, top, right - left, bottom - top, 28);
+        bowl.lineStyle(5, 0xd8b85a, 0.72);
+        bowl.beginPath();
+        bowl.moveTo(left, top + 18);
+        bowl.lineTo(left, bottom - 34);
+        bowl.lineTo(left + 34, bottom);
+        bowl.lineTo(right - 34, bottom);
+        bowl.lineTo(right, bottom - 34);
+        bowl.lineTo(right, top + 18);
+        bowl.strokePath();
+
+        const innerGlow = this.add.graphics().setDepth(0);
+        innerGlow.lineStyle(2, 0x66ccff, 0.22);
+        innerGlow.strokeRoundedRect(left + 8, top + 12, right - left - 16, bottom - top - 20, 24);
     }
 
     // ========================================
@@ -368,6 +405,45 @@ export class GameScene extends Phaser.Scene {
         container.on('pointerdown', callback);
         
         return container;
+    }
+
+    private createComboMultiplierColumn(): void {
+        const x = 1040;
+        const y = 190;
+        const values = [1, 1.2, 1.5, 2, 3, 4];
+        const panel = this.add.rectangle(x, y + 112, 126, 292, 0x080b10, 0.78)
+            .setStrokeStyle(2, GAME_CONFIG.colors.gold, 0.55).setDepth(10);
+        const title = this.add.text(x, y - 18, 'COMBO\nMULTIPLIER', {
+            fontSize: '14px', color: '#f7e8be', align: 'center', fontStyle: 'bold',
+            fontFamily: MEDIEVAL_FONT, stroke: '#000000', strokeThickness: 3
+        }).setOrigin(0.5).setDepth(11);
+        this.comboMarkers = values.map((value, index) => {
+            const markerY = y + 38 + index * 36;
+            const stone = this.add.circle(0, 0, 15, 0x273142, 0.95)
+                .setStrokeStyle(2, 0x8a93a5, 0.7);
+            const label = this.add.text(0, 0, `×${value}`, {
+                fontSize: '13px', color: '#aeb8c8', fontStyle: 'bold', fontFamily: MEDIEVAL_FONT
+            }).setOrigin(0.5);
+            const marker = this.add.container(x, markerY, [stone, label]).setDepth(11);
+            marker.setData('stone', stone);
+            marker.setData('label', label);
+            return marker;
+        });
+        panel.setData('title', title);
+        this.updateComboMultiplierColumn(0);
+    }
+
+    private updateComboMultiplierColumn(combo: number): void {
+        const activeIndex = Math.max(0, Math.min(5, combo - 1));
+        this.comboMarkers.forEach((marker, index) => {
+            const active = combo > 0 && index === activeIndex;
+            const stone = marker.getData('stone') as Phaser.GameObjects.Arc;
+            const label = marker.getData('label') as Phaser.GameObjects.Text;
+            stone.setFillStyle(active ? 0xffb52e : 0x273142, active ? 1 : 0.95)
+                .setStrokeStyle(active ? 4 : 2, active ? 0xffffff : 0x8a93a5, active ? 1 : 0.7);
+            label.setColor(active ? '#17100a' : '#aeb8c8');
+            if (active) this.tweens.add({ targets: marker, scale: 1.18, duration: 180, yoyo: true });
+        });
     }
 
     private createAudioControl(): void {
@@ -582,7 +658,7 @@ export class GameScene extends Phaser.Scene {
         }
         
         // Update progress bar
-        const { width, height } = config.meterSize;
+        const { width } = config.meterSize;
         const barHeight = 205;
         const blockCount = maxLords;
         const blockGap = 4;
@@ -868,18 +944,16 @@ export class GameScene extends Phaser.Scene {
 
         createConfetti(this);
         shakeScreen(this, 1);
-        const entrance = this.add.text(width / 2, height / 2, 'BONUS UNLOCKED!\n10 FREE SPINS', {
-            fontSize: '58px', color: '#FFD86B', fontStyle: 'bold', align: 'center',
-            stroke: '#3A1600', strokeThickness: 10
-        }).setOrigin(0.5).setDepth(1200).setScale(0.2);
+        const entrance = this.add.circle(width / 2, height / 2, 88, 0xffd86b, 0.16)
+            .setStrokeStyle(8, 0xffd86b, 0.95).setDepth(1200).setScale(0.2);
         this.tweens.add({
-            targets: entrance, scale: 1, duration: 650, ease: 'Back.easeOut',
-            yoyo: true, hold: 1400,
+            targets: entrance, scale: 2.4, alpha: 0, angle: 180, duration: 1100, ease: 'Cubic.easeOut',
             onComplete: () => entrance.destroy()
         });
 
-        this.bonusLabel = this.add.text(width - 105, 88, 'BONUS 10/10', {
+        this.bonusLabel = this.add.text(100, 430, 'BONUS  •  10 SPINS', {
             fontSize: '24px', color: '#FFD86B', fontStyle: 'bold',
+            backgroundColor: '#07122FDD', padding: { x: 12, y: 8 },
             stroke: '#07122F', strokeThickness: 6
         }).setOrigin(0.5).setDepth(1100);
         this.tweens.add({ targets: this.bonusLabel, alpha: 0.55, duration: 600, yoyo: true, repeat: -1 });
@@ -1081,7 +1155,7 @@ export class GameScene extends Phaser.Scene {
             fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(102);
         
-        const betValues = [0.20, 0.40, 1.00, 2.00, 3.00, 4.00, 5.00, 10.00];
+        const betValues = [0.20, 0.40, 1.00, 2.00, 3.00, 5.00, 10.00, 20.00];
         const elementsToDestroy: Phaser.GameObjects.GameObject[] = [overlay, modal, title];
         
         betValues.forEach((value, index) => {
@@ -1194,11 +1268,10 @@ export class GameScene extends Phaser.Scene {
      * Main spin sequence - async
      */
     private async startSpin(isBonusSpin: boolean = false): Promise<void> {
-        // Step 1: Spawn 4 rows (24 gems total)
-        await this.spawnInitialGrid();
-        
-        // Step 2: Resolve all cascades (silent)
-        await this.resolveAllCascades();
+        this.determineRoundLords();
+        await this.spawnFreeBalls(34, true);
+        await this.waitForFreeBalls(2400);
+        await this.resolveFreeBallCascades();
         
         // Step 3: Show final win amount (large text)
         if (this.roundWinnings > 0) {
@@ -1212,7 +1285,7 @@ export class GameScene extends Phaser.Scene {
                 return;
             }
             if (isBonusSpin) this.bonusSpinsRemaining--;
-            this.bonusLabel?.setText(`BONUS ${this.bonusSpinsRemaining}/10`);
+            this.bonusLabel?.setText(`BONUS  •  ${this.bonusSpinsRemaining} SPINS`);
             if (this.bonusSpinsRemaining > 0) {
                 this.updateUI(`Next bonus spin: ${this.bonusSpinsRemaining} left`);
                 await this.wait(1200);
@@ -1226,6 +1299,199 @@ export class GameScene extends Phaser.Scene {
         // End round
         this.roundInProgress = false;
         this.updateUI('Round Complete');
+    }
+
+    private createFreeBallDisplay(gemType: string, x: number, y: number): Phaser.GameObjects.Container {
+        if (gemType.startsWith('mascot_')) {
+            return createMascotGem(this, x, y, gemType.split('_')[1] as 'red' | 'green' | 'blue' | 'yellow', true);
+        }
+        if (gemType.startsWith('lord_')) {
+            return createLordGem(this, x, y, gemType.split('_')[1] as 'ignis' | 'ventus' | 'aqua' | 'terra', true);
+        }
+        if (gemType === 'black_gem') return createBlackGem(this, x, y, true);
+        if (gemType.startsWith('bomb_')) {
+            return createBombGem(this, x, y, gemType.split('_')[1] as 'small' | 'medium' | 'large' | 'line' | 'color', true);
+        }
+        return createMascotGem(this, x, y, 'red', true);
+    }
+
+    private async spawnFreeBalls(count: number, opening: boolean = false): Promise<void> {
+        const { left, right, top } = GAME_CONFIG.playArea;
+        this.freePhysicsActive = true;
+        for (let index = 0; index < count; index++) {
+            const gemType = getRandomGemType(this.lordsThisRound);
+            const radius = gemType.startsWith('lord_') ? 25 : 23;
+            const x = Phaser.Math.Between(left + radius + 6, right - radius - 6);
+            const y = top - 55 - index * (opening ? 12 : 7) - Phaser.Math.Between(0, 70);
+            const display = this.createFreeBallDisplay(gemType, x, y)
+                .setScale(gemType.startsWith('lord_') ? 0.78 : 0.82)
+                .setDepth(20)
+                .setAngle(Phaser.Math.Between(-25, 25));
+            const rawColor = display.getData('color');
+            this.freeBalls.push({
+                id: this.nextBallId++, display, gemType,
+                color: typeof rawColor === 'string' && rawColor !== 'black' ? rawColor : null,
+                x, y,
+                vx: Phaser.Math.Between(-135, 135),
+                vy: Phaser.Math.Between(10, 90),
+                radius,
+                angle: display.angle,
+                angularVelocity: Phaser.Math.Between(-115, 115)
+            });
+            if (index % 4 === 3) await this.wait(opening ? 34 : 22);
+        }
+    }
+
+    private stepFreeBallPhysics(dt: number): void {
+        const { left, right, top, bottom } = GAME_CONFIG.playArea;
+        const gravity = 1120;
+        const restitution = 0.34;
+        const damping = Math.pow(0.992, dt * 60);
+
+        for (const ball of this.freeBalls) {
+            ball.vy += gravity * dt;
+            ball.vx *= damping;
+            ball.angularVelocity *= Math.pow(0.985, dt * 60);
+            ball.x += ball.vx * dt;
+            ball.y += ball.vy * dt;
+            ball.angle += ball.angularVelocity * dt;
+
+            if (ball.x - ball.radius < left) {
+                ball.x = left + ball.radius;
+                ball.vx = Math.abs(ball.vx) * restitution;
+                ball.angularVelocity += 24;
+            } else if (ball.x + ball.radius > right) {
+                ball.x = right - ball.radius;
+                ball.vx = -Math.abs(ball.vx) * restitution;
+                ball.angularVelocity -= 24;
+            }
+            if (ball.y - ball.radius < top && ball.vy < 0) {
+                ball.y = top + ball.radius;
+                ball.vy = Math.abs(ball.vy) * restitution;
+            }
+            if (ball.y + ball.radius > bottom) {
+                ball.y = bottom - ball.radius;
+                if (Math.abs(ball.vy) > 34) playGemLand(ball.id % 6);
+                ball.vy = -Math.abs(ball.vy) * restitution;
+                ball.vx *= 0.88;
+                if (Math.abs(ball.vy) < 18) ball.vy = 0;
+            }
+        }
+
+        for (let i = 0; i < this.freeBalls.length; i++) {
+            const a = this.freeBalls[i];
+            for (let j = i + 1; j < this.freeBalls.length; j++) {
+                const b = this.freeBalls[j];
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                const minDistance = a.radius + b.radius;
+                const distanceSq = dx * dx + dy * dy;
+                if (distanceSq >= minDistance * minDistance) continue;
+
+                const distance = Math.sqrt(distanceSq) || 0.001;
+                const nx = dx / distance;
+                const ny = dy / distance;
+                const overlap = minDistance - distance;
+                a.x -= nx * overlap * 0.5;
+                a.y -= ny * overlap * 0.5;
+                b.x += nx * overlap * 0.5;
+                b.y += ny * overlap * 0.5;
+
+                const relativeVelocity = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+                if (relativeVelocity < 0) {
+                    const impulse = -(1 + restitution) * relativeVelocity * 0.5;
+                    a.vx -= impulse * nx;
+                    a.vy -= impulse * ny;
+                    b.vx += impulse * nx;
+                    b.vy += impulse * ny;
+                    a.angularVelocity -= impulse * 0.35;
+                    b.angularVelocity += impulse * 0.35;
+                }
+            }
+        }
+
+        for (const ball of this.freeBalls) {
+            ball.display.setPosition(ball.x, ball.y).setAngle(ball.angle);
+        }
+    }
+
+    private async waitForFreeBalls(maximumMs: number): Promise<void> {
+        const startedAt = this.time.now;
+        let calmFrames = 0;
+        while (this.time.now - startedAt < maximumMs) {
+            await this.wait(80);
+            const calm = this.freeBalls.every(ball => Math.abs(ball.vx) + Math.abs(ball.vy) < 42);
+            calmFrames = calm ? calmFrames + 1 : 0;
+            if (calmFrames >= 4 && this.time.now - startedAt > 850) break;
+        }
+    }
+
+    private findFreeBallMatches(): FreeBall[][] {
+        const matches: FreeBall[][] = [];
+        const visited = new Set<number>();
+        for (const seed of this.freeBalls) {
+            if (!seed.color || visited.has(seed.id)) continue;
+            const cluster: FreeBall[] = [];
+            const queue = [seed];
+            visited.add(seed.id);
+            while (queue.length > 0) {
+                const current = queue.pop()!;
+                cluster.push(current);
+                for (const candidate of this.freeBalls) {
+                    if (visited.has(candidate.id) || candidate.color !== current.color) continue;
+                    const distance = Math.hypot(candidate.x - current.x, candidate.y - current.y);
+                    if (distance <= current.radius + candidate.radius + 9) {
+                        visited.add(candidate.id);
+                        queue.push(candidate);
+                    }
+                }
+            }
+            if (cluster.length >= 3) matches.push(cluster);
+        }
+        return matches;
+    }
+
+    private calculateFreeBallWin(matches: FreeBall[][], combo: number): number {
+        const comboMultiplier = getComboMultiplier(combo);
+        return matches.reduce((total, match) => {
+            const matchMultiplier = getMatchMultiplier(match.length);
+            return total + match.reduce((sum, ball) => {
+                const value = GAME_CONFIG.gemValues[ball.gemType as keyof typeof GAME_CONFIG.gemValues] || 0;
+                return sum + value * matchMultiplier * comboMultiplier;
+            }, 0);
+        }, 0);
+    }
+
+    private async removeFreeBallMatches(matches: FreeBall[][]): Promise<number> {
+        const removed = [...new Set(matches.flat())];
+        const removedIds = new Set(removed.map(ball => ball.id));
+        this.freeBalls = this.freeBalls.filter(ball => !removedIds.has(ball.id));
+        removed.forEach(ball => {
+            const color = GAME_CONFIG.colors[ball.color as keyof typeof GAME_CONFIG.colors] || 0xffffff;
+            createExplosion(this, ball.x, ball.y, color, 1);
+            this.tweens.add({
+                targets: ball.display, scale: 1.45, alpha: 0, angle: ball.angle + 90,
+                duration: 300, ease: 'Back.easeIn', onComplete: () => ball.display.destroy()
+            });
+        });
+        await this.wait(340);
+        return removed.length;
+    }
+
+    private async resolveFreeBallCascades(): Promise<void> {
+        for (let combo = 1; combo <= 8; combo++) {
+            const matches = this.findFreeBallMatches();
+            if (matches.length === 0) break;
+            this.updateComboMultiplierColumn(combo);
+            playMatchSound(matches.length);
+            this.feedMaxWinMeter(matches.length);
+            const win = this.calculateFreeBallWin(matches, combo);
+            this.roundWinnings += win;
+            const removedCount = await this.removeFreeBallMatches(matches);
+            await this.spawnFreeBalls(removedCount);
+            await this.waitForFreeBalls(1800);
+        }
+        this.updateComboMultiplierColumn(0);
     }
     
     /** Spawn the opening board as independent streams per channel. */
@@ -2035,19 +2301,6 @@ export class GameScene extends Phaser.Scene {
             createConfetti(this);
         }
         
-        // Calculate total win amount
-        let totalWin = 0;
-        matches.forEach(cluster => {
-            const multiplier = getMatchMultiplier(cluster.size);
-            const comboMultiplier = getComboMultiplier(this.cascadeLevel);
-            
-            cluster.gems.forEach(gemData => {
-                const gemType = gemData.container.getData('gemType');
-                const value = GAME_CONFIG.gemValues[gemType as keyof typeof GAME_CONFIG.gemValues] || 0;
-                totalWin += value * multiplier * comboMultiplier;
-            });
-        });
-        
         // Blinking animation loop
         for (let i = 0; i < config.blinks; i++) {
             // Blink ON - scale up with glow
@@ -2445,7 +2698,4 @@ export class GameScene extends Phaser.Scene {
         console.log(`[Streaks] Wins: ${this.rtpTracker.consecutiveWins} | Losses: ${this.rtpTracker.consecutiveLosses}`);
     }
     
-    update(): void {
-        // Update falling gems physics
-    }
 }
