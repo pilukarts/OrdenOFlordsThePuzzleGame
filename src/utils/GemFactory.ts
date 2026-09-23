@@ -6,75 +6,34 @@
 import Phaser from 'phaser';
 import { GAME_CONFIG, LORD_CONFIG, MASCOT_CONFIG } from '../config/GameConfig';
 
-/**
- * Create a hexagon background shape
- */
+/** Create a polished round relic. The old faceted hexagon made every piece
+ * read as a fixed grid gem; a sphere keeps the silhouette alive while it rolls. */
 function createHexagonBackground(scene: Phaser.Scene, color: number, size: number): Phaser.GameObjects.Graphics {
-    const hexagon = scene.add.graphics();
-    
-    // Calculate 6 points for hexagon (flat top)
-    const points: { x: number; y: number }[] = [];
-    for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI / 3) * i - Math.PI / 6;  // Flat top hexagon
-        points.push({
-            x: size * Math.cos(angle),
-            y: size * Math.sin(angle)
-        });
-    }
-    
-    // Richer jewel palette for a premium faceted-stone appearance.
+    const orb = scene.add.graphics();
     const lightColor = Phaser.Display.Color.Interpolate.ColorWithColor(
         Phaser.Display.Color.ValueToColor(color),
         Phaser.Display.Color.ValueToColor(0xFFFFFF),
-        100,
-        55
+        100, 58
     );
     const darkColor = Phaser.Display.Color.Interpolate.ColorWithColor(
         Phaser.Display.Color.ValueToColor(color),
         Phaser.Display.Color.ValueToColor(0x050509),
-        100,
-        58
+        100, 62
     );
-    
-    // Dark outer silhouette gives the gem weight against detailed backgrounds.
-    hexagon.fillStyle(0x050509, 0.82);
-    hexagon.beginPath();
-    hexagon.moveTo(points[0].x * 1.08, points[0].y * 1.08);
-    for (let i = 1; i < points.length; i++) hexagon.lineTo(points[i].x * 1.08, points[i].y * 1.08);
-    hexagon.closePath();
-    hexagon.fillPath();
 
-    // Main jewel body.
-    hexagon.fillGradientStyle(
-        lightColor.color, color,
-        darkColor.color, darkColor.color,
-        1
-    );
-    
-    // Draw hexagon path
-    hexagon.beginPath();
-    hexagon.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-        hexagon.lineTo(points[i].x, points[i].y);
-    }
-    hexagon.closePath();
-    hexagon.fillPath();
-    
-    // Metallic rim and a thin inner highlight.
-    hexagon.lineStyle(4, 0xf6d77a, 0.95);
-    hexagon.strokePath();
-    hexagon.lineStyle(1.5, 0xffffff, 0.72);
-    hexagon.strokePath();
-
-    // Facets: translucent triangular planes meeting at the centre.
-    hexagon.fillStyle(0xffffff, 0.12);
-    hexagon.fillTriangle(0, 0, points[0].x, points[0].y, points[1].x, points[1].y);
-    hexagon.fillTriangle(0, 0, points[1].x, points[1].y, points[2].x, points[2].y);
-    hexagon.fillStyle(0x000000, 0.18);
-    hexagon.fillTriangle(0, 0, points[3].x, points[3].y, points[4].x, points[4].y);
-    hexagon.fillTriangle(0, 0, points[4].x, points[4].y, points[5].x, points[5].y);
-    
-    return hexagon;
+    orb.fillStyle(0x02050a, 0.88);
+    orb.fillCircle(2, 4, size * 1.08);
+    orb.fillGradientStyle(lightColor.color, color, darkColor.color, darkColor.color, 1);
+    orb.fillCircle(0, 0, size);
+    orb.lineStyle(3.5, 0xf6d77a, 0.9);
+    orb.strokeCircle(0, 0, size);
+    orb.lineStyle(1.4, 0xffffff, 0.7);
+    orb.strokeCircle(0, 0, size * 0.88);
+    orb.fillStyle(0xffffff, 0.3);
+    orb.fillEllipse(-size * 0.32, -size * 0.38, size * 0.62, size * 0.32);
+    orb.fillStyle(0xffffff, 0.1);
+    orb.fillCircle(size * 0.35, size * 0.26, size * 0.12);
+    return orb;
 }
 
 /**
@@ -244,24 +203,10 @@ export function createLordGem(
     // Hexagon background (CHANGED from circle)
     const hexBg = createHexagonBackground(scene, config.baseColor, radius);
     
-    // Rim (golden border for Lord)
+    // Circular golden rim for a Lord relic.
     const rimHex = scene.add.graphics();
-    const rimPoints: { x: number; y: number }[] = [];
-    for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI / 3) * i - Math.PI / 6;
-        rimPoints.push({
-            x: radius * Math.cos(angle),
-            y: radius * Math.sin(angle)
-        });
-    }
     rimHex.lineStyle(3, config.rimColor, 0.9);
-    rimHex.beginPath();
-    rimHex.moveTo(rimPoints[0].x, rimPoints[0].y);
-    for (let i = 1; i < rimPoints.length; i++) {
-        rimHex.lineTo(rimPoints[i].x, rimPoints[i].y);
-    }
-    rimHex.closePath();
-    rimHex.strokePath();
+    rimHex.strokeCircle(0, 0, radius);
     
     // Outer glow
     const outerGlow = scene.add.graphics();
