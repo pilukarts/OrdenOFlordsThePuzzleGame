@@ -21,13 +21,13 @@ function createHexagonBackground(scene: Phaser.Scene, color: number, size: numbe
         100, 62
     );
 
-    orb.fillStyle(0x02050a, 0.88);
+    orb.fillStyle(0x02050a, 0.45);
     orb.fillCircle(2, 4, size * 1.08);
     orb.fillGradientStyle(lightColor.color, color, darkColor.color, darkColor.color, 1);
     orb.fillCircle(0, 0, size);
-    orb.lineStyle(3.5, 0xf6d77a, 0.9);
+    orb.lineStyle(1.5, lightColor.color, 0.55);
     orb.strokeCircle(0, 0, size);
-    orb.lineStyle(1.4, 0xffffff, 0.7);
+    orb.lineStyle(1, 0xffffff, 0.16);
     orb.strokeCircle(0, 0, size * 0.88);
     orb.fillStyle(0xffffff, 0.3);
     orb.fillEllipse(-size * 0.32, -size * 0.38, size * 0.62, size * 0.32);
@@ -118,7 +118,7 @@ export function createMascotGem(
     innerShadow.setStrokeStyle(2, colors3D.light, 0.7);
     
     // Layer 4: Specular highlight (top-left)
-    const highlight = scene.add.ellipse(-radius * 0.27, -radius * 0.27, radius * 0.5, radius * 0.33, 0xFFFFFF, 0.6);
+    const highlight = scene.add.ellipse(-radius * 0.27, -radius * 0.27, radius * 0.5, radius * 0.33, 0xFFFFFF, 0.28);
     highlight.setBlendMode(Phaser.BlendModes.ADD);
     
     // Layer 5: Mascot image
