@@ -1541,6 +1541,49 @@ export class GameScene extends Phaser.Scene {
     /**
      * Spawn a gem at a specific grid position with tween animation
      */
+    /** Animate presentation only; resolve once the orb is centred and settled. */
+    private animateOrbDrop(gem: Phaser.GameObjects.Container, x: number, y: number, delay = 0): Promise<void> {
+        this.tweens.killTweensOf(gem);
+        const startX = gem.x, startY = gem.y;
+        const sx = gem.scaleX, sy = gem.scaleY;
+        const distance = Math.abs(y - startY);
+        const turn = Phaser.Math.Between(8, 18) * (Phaser.Math.Between(0, 1) ? 1 : -1);
+        const drift = Math.sign(turn) * Math.min(4, distance * 0.015);
+        return new Promise(resolve => {
+            this.tweens.addCounter({
+                from: 0, to: 1, delay,
+                duration: Phaser.Math.Clamp(Math.sqrt(distance / 0.0028), 180, 670),
+                ease: 'Quad.easeIn',
+                onUpdate: tween => {
+                    const t = tween.getValue() ?? 0;
+                    gem.setAlpha(1).setPosition(
+                        Phaser.Math.Linear(startX, x, t) + Math.sin(t * Math.PI) * drift,
+                        Phaser.Math.Linear(startY, y, t)
+                    ).setAngle(turn * t);
+                },
+                onComplete: () => {
+                    playGemLand(gem.getData('col'));
+                    this.tweens.addCounter({
+                        from: 0, to: 1, duration: 240, ease: 'Linear',
+                        onUpdate: tween => {
+                            const t = tween.getValue() ?? 0;
+                            const damping = 1 - t;
+                            const squash = Math.sin(t * Math.PI * 2) * damping * 0.045;
+                            gem.setPosition(x, y - Math.sin(t * Math.PI) * Math.min(7, distance * 0.035) * damping);
+                            gem.setAngle(turn * damping * Math.cos(t * Math.PI * 2));
+                            gem.setScale(sx * (1 + squash), sy * (1 - squash));
+                        },
+                        onComplete: () => {
+                            gem.setPosition(x, y).setAngle(0).setScale(sx, sy);
+                            this.reEnableGemAnimations(gem, y);
+                            resolve();
+                        }
+                    });
+                }
+            });
+        });
+    }
+
     private async spawnGemAt(col: number, row: number, dropDelay: number = 0): Promise<void> {
         return new Promise((resolve) => {
             let gemType = getRandomGemType(this.lordsThisRound);
@@ -1586,22 +1629,7 @@ export class GameScene extends Phaser.Scene {
             gem.setData('col', col);
             gem.setData('row', row);
             
-            // Animate with TWEEN (not physics)
-            this.tweens.add({
-                targets: gem,
-                y: targetY,
-                alpha: 1,
-                delay: dropDelay,
-                duration: GAME_CONFIG.gemFallDuration + Phaser.Math.Between(80, 230),
-                ease: 'Bounce.easeOut',
-                onComplete: () => {
-                    // Re-enable idle animations after landing
-                    this.reEnableGemAnimations(gem, targetY);
-                    playGemLand(col);
-                    
-                    resolve();
-                }
-            });
+            this.animateOrbDrop(gem, targetX, targetY, dropDelay).then(resolve);
         });
     }
     
@@ -1730,20 +1758,7 @@ export class GameScene extends Phaser.Scene {
                 this.tweens.killTweensOf(gem);
 
                 if (Math.abs(gem.y - targetY) > 0.5 || Math.abs(gem.x - targetX) > 0.5) {
-                    movements.push(new Promise<void>(resolve => {
-                        this.tweens.add({
-                            targets: gem,
-                            x: targetX,
-                            y: targetY,
-                            duration: 280,
-                            ease: 'Cubic.easeIn',
-                            onComplete: () => {
-                                gem.setPosition(targetX, targetY);
-                                this.reEnableGemAnimations(gem, targetY);
-                                resolve();
-                            }
-                        });
-                    }));
+                    movements.push(this.animateOrbDrop(gem, targetX, targetY));
                 } else {
                     gem.setPosition(targetX, targetY);
                 }
@@ -2140,44 +2155,10 @@ export class GameScene extends Phaser.Scene {
                 this.tweens.paused = false;
             }
             
-            // Track whether promise has been resolved
-            let resolved = false;
-            
-            // 🎯 Pure vertical fall animation - NO physics, NO horizontal movement
-            this.tweens.add({
-                targets: gem,
-                y: targetY,
-                duration: 500,  // Slightly longer for smooth fall
-                ease: 'Cubic.easeIn',  // Natural gravity feel
-                onStart: () => {
-                    console.log(`[CASCADE] Tween started for gem at col=${col} row=${row}`);
-                },
-                onComplete: () => {
-                    console.log(`[CASCADE] Tween complete for gem at col=${col} row=${row}, final y=${gem.y}`);
-                    
-                    // Re-enable idle animations after landing
-                    this.reEnableGemAnimations(gem, targetY);
-                    
-                    // Check if this lord landed in mid-air or base
-                    this.checkWildLanding(gem, row, col);
-                    
-                    if (!resolved) {
-                        resolved = true;
-                        resolve();
-                    }
-                }
-            });
-            
-            // 🐛 SAFETY: If tween doesn't complete within 2 seconds, force resolve
-            this.time.delayedCall(2000, () => {
-                // Use epsilon for floating-point comparison
-                if (!resolved && Math.abs(gem.y - targetY) > 0.5) {
-                    console.error(`[CASCADE] Tween timeout! Gem stuck at y=${gem.y}, expected y=${targetY}`);
-                    gem.y = targetY;  // Force position
-                    this.reEnableGemAnimations(gem, targetY);
-                    resolved = true;
-                    resolve();
-                }
+            gem.setScale(0.74);
+            this.animateOrbDrop(gem, targetX, targetY).then(() => {
+                this.checkWildLanding(gem, row, col);
+                resolve();
             });
         });
     }
